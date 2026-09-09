@@ -27,11 +27,11 @@ $required = @(
   'custom:slider-button-card',
   'light1_card_type',
   'Slider Light Cards',
-  'id="dc12System" style="display:none"',
   'id="dc12Gauge"',
+  'boolConfigValue',
   'const showPhaseCard = c._show_phase !== false',
   'id="phaseFlip"',
-  'Do not render a duplicate here',
+  '12V current gauge stays visible',
   'dcPhaseBatteryV',
   "isDay ? sun.rise : sun.set",
   'text_overrides',
@@ -43,6 +43,20 @@ $required = @(
 
 foreach ($marker in $required) {
   if (-not $source.Contains($marker)) { throw "Required feature marker missing: $marker" }
+}
+
+$forbidden = @(
+  'id="dc12System"',
+  "switchRow('dc12_enabled'",
+  'label_inv_title',
+  'id="tpRing"',
+  'id="tpSvg"',
+  'id="invRowP"',
+  'id="invRowV"'
+)
+
+foreach ($marker in $forbidden) {
+  if ($source.Contains($marker)) { throw "Obsolete feature marker is still present: $marker" }
 }
 
 Write-Host 'Casa Luna smoke check passed.'

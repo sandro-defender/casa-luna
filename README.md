@@ -111,19 +111,19 @@ Available custom icon names: `gear`, `home`, `bolt`, `plug`, `batt`, `therm`, `s
 
 ## Separate 12V DC system
 
-The former inverter area keeps its original two-card visual layout, repurposed as a dedicated **12V DC System**. The right circular indicator shows DC current in amps and fills as the current approaches its configured maximum; the left card shows the separate DC readings. Configure it in the editor with your separate DC sensors:
+The lower-right **12V DC System** indicator shows DC current in amps and fills as the current approaches its configured maximum. The Grid Phases card rotates: its front shows grid L1–L3 power and voltage, while its reverse side shows your separate 12V readings. Configure these sensors in the editor:
 
 - `dc12_solar_voltage`
 - `dc12_supply_voltage`
 - `dc12_battery_voltage`
 - `dc12_current`
-- `dc12_power` (optional; drives the top PWR indicator)
+- `dc12_power` (optional; shown as the gauge status line)
 
-This card is separate from your 220V/AC monitoring. It keeps the current gauge on the left and shows solar, power-supply, and battery voltages in the three companion tiles on the right. The editor lets you rename the card, each DC sensor label, and the current gauge; set its maximum current for the gauge scale. The top grid indicator uses `grid_active_power` and has its own editable label and maximum-power scale in the Grid section. The pre-change module is preserved as `dist/casa-luna.backup.js`.
+This system is separate from your 220V/AC monitoring. The editor lets you rename the 12V system, each sensor label, and the current gauge; set its maximum current for the gauge scale. The top grid indicator uses `grid_active_power` and has its own editable label and maximum-power scale in the Grid section. The pre-change module is preserved as `dist/casa-luna.backup.js`.
 
 ## Editor layout and demo mode
 
-The editor begins with **Start Here** and keeps the most common sections clear: **12V DC System**, **Main Energy**, **AC 3-Phase Monitor**, and **Battery**. The old standalone inverter-status configuration has been removed. The AC 3-Phase Monitor remains available for your grid and AC-source L1/L2/L3 sensors.
+The editor begins with **Start Here** and keeps the most common sections clear: **12V DC System**, **Main Energy**, **Grid Phases**, and **Battery**. Optional AC-source L1/L2/L3 sensors remain available for AC load and flow calculations.
 
 Demo Mode now creates safe, local mock entities for all empty card slots, including navigation views, lights, security, controls, battery packs, and 12V readings. Existing configured entities continue to show their real state, and demo controls never send commands to real devices.
 

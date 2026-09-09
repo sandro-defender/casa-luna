@@ -611,6 +611,20 @@ const NUMERIC_CONFIG_KEYS = [
   'sz_pvtile', 'sz_bottile_label', 'sz_bottile_value', 'sz_totals_value', 'sz_invload',
 ];
 
+/* YAML may contain quoted booleans. Normalize them once so every visibility
+   switch behaves consistently instead of treating the string "false" as true. */
+const boolConfigValue = (value, fallback) => {
+  if (typeof value === 'boolean') return value;
+  if (value === 1) return true;
+  if (value === 0) return false;
+  if (typeof value === 'string') {
+    const v = value.trim().toLowerCase();
+    if (['true', 'yes', 'on', '1'].includes(v)) return true;
+    if (['false', 'no', 'off', '0'].includes(v)) return false;
+  }
+  return fallback;
+};
+
 /* recognized HA domains — used by the hass-update dirty-check to find entity-id-shaped
    config values regardless of key naming (config has no consistent *_entity suffix). */
 const HA_DOMAINS = /^(sensor|binary_sensor|switch|light|climate|sun|weather|camera|automation|scene|script|input_boolean|input_datetime|input_number|input_select|input_text|person|device_tracker|cover|fan|lock|alarm_control_panel|media_player|water_heater|vacuum|humidifier|number|select|button|group|zone|timer|counter|proximity)\./;
@@ -643,7 +657,7 @@ class CasaLuna extends HTMLElement {
       today_pv: '',
       total_pv: '',
       total_import: '', total_export: '',
-      dc12_enabled: true, dc12_name: '12V DC SYSTEM',
+      dc12_name: '12V DC SYSTEM',
       dc12_solar_voltage: '', dc12_supply_voltage: '', dc12_battery_voltage: '',
       dc12_current: '', dc12_power: '', dc12_max_current: 100,
       label_pv_indicator: 'PV', label_grid_indicator: 'GRID PWR', label_dc12_current_indicator: 'DC CURRENT',
@@ -711,8 +725,8 @@ class CasaLuna extends HTMLElement {
       auto_discover_security: false, auto_discover_climate: false,
       auto_discover_lighting: false, auto_discover_automation: false,
       events_entities: [],
-      /* ── phase / inverter flip tile ── */
-      label_phase_title: 'GRID PHASES', label_inv_title: 'AC SOURCE',
+      /* ── phase monitor / optional AC-load inputs ── */
+      label_phase_title: 'GRID PHASES',
       inv_l1_power: '', inv_l2_power: '', inv_l3_power: '',
       inverter_output_power: '',
       inv_l1_volt: '', inv_l2_volt: '', inv_l3_volt: '',
@@ -846,6 +860,9 @@ class CasaLuna extends HTMLElement {
     for (const k of NUMERIC_CONFIG_KEYS) {
       const n = Number(merged[k]);
       merged[k] = Number.isFinite(n) ? n : stub[k];
+    }
+    for (const [k, fallback] of Object.entries(stub)) {
+      if (typeof fallback === 'boolean') merged[k] = boolConfigValue(merged[k], fallback);
     }
     if (merged._demo_mode) this._populateDemoEntities(merged);
     this.config = merged;
@@ -1863,20 +1880,8 @@ class CasaLuna extends HTMLElement {
         </div>
       </div>
     </div>
-    <!-- The 12V system remains in the right inverter-style card (current ring +
-         grid-power line). Do not render a duplicate here: this slot is solely for
-         the optional original 3-phase monitor. -->
-    <div id="dc12System" style="display:none">
-      <div class="val" style="position:absolute;left:14px;top:10px;font-size:14px;color:#cce4ff">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
-      <div style="position:absolute;left:14px;right:14px;top:38px;display:grid;grid-template-columns:1fr 1fr;gap:8px 12px">
-        <div style="min-width:0"><div style="font-size:9px;color:#ffd24a;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_solar_voltage || 'SOLAR')}</div><div class="val" id="dc12SolarV" style="font-size:18px;color:#ffd24a">--</div></div>
-        <div style="min-width:0"><div style="font-size:9px;color:#7fd4ff;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_supply_voltage || 'SUPPLY')}</div><div class="val" id="dc12SupplyV" style="font-size:18px;color:#7fd4ff">--</div></div>
-        <div style="min-width:0"><div style="font-size:9px;color:#7ce05a;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_battery_voltage || 'BATTERY')}</div><div class="val" id="dc12BatteryV" style="font-size:18px;color:#7ce05a">--</div></div>
-        <div style="min-width:0"><div style="font-size:9px;color:#a8cae6;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_current || 'CURRENT')}</div><div class="val" id="dc12Current" style="font-size:18px;color:#eaf4ff">--</div></div>
-      </div>
-      <div style="position:absolute;right:14px;bottom:9px;font-size:12px;font-weight:700;color:#d8eeff"><span style="font-size:9px;color:#607892;letter-spacing:.06em">${esc(c.title_dc12_power || 'POWER')}</span> <span id="dc12Power">--</span></div>
-    </div>
-    <div id="dc12Gauge" class="box" style="left:${irX}px;top:${IR[1]}px;width:${irW}px;height:${IR[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35));${c.dc12_enabled === false ? 'display:none;' : ''}">
+    <!-- The 12V current gauge stays visible beside the Grid Phases flip card. -->
+    <div id="dc12Gauge" class="box" style="left:${irX}px;top:${IR[1]}px;width:${irW}px;height:${IR[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35))">
       <svg style="position:absolute;left:${DC[0]-irX-10}px;top:${(IR[3]-115)/2}px;width:115px;height:115px" viewBox="0 0 115 115">
         ${(() => {
           const cx = 57.5, cy = 57.5, r = 44, sw = 6.1;
@@ -3873,7 +3878,7 @@ class CasaLuna extends HTMLElement {
       dcard = `
         <div class="dcard ${on ? 'on-y' : ''}" style="width:100%">
           <div class="top-h ${on ? 'bg-y' : ''}">
-            <div class="i-ring ${on ? 'ry' : ''}" id="tpRing"><svg id="tpSvg" viewBox="0 0 24 24" width="28" height="28" class="${on ? 'tileBulbOn' : ''}">${RC.bulb}</svg></div>
+            <div class="i-ring ${on ? 'ry' : ''}" data-role="tp-ring"><svg viewBox="0 0 24 24" width="28" height="28" class="${on ? 'tileBulbOn' : ''}">${RC.bulb}</svg></div>
             <div class="on-badge ${on ? 'ba-y' : 'ba-off'}">${on ? 'ON' : 'OFF'}</div>
           </div>
           <div class="bot-h">
@@ -3890,7 +3895,7 @@ class CasaLuna extends HTMLElement {
       dcard = `
         <div class="dcard ${on ? 'on-c' : ''}" style="width:100%">
           <div class="top-h ${on ? 'bg-c' : ''}">
-            <div class="i-ring ${on ? 'rc' : ''}" id="tpRing"><svg id="tpSvg" viewBox="0 0 24 24" width="28" height="28" class="${on ? 'tileSpin' : ''}" style="color:${on ? 'rgba(0,225,255,0.95)' : 'rgba(180,180,180,0.45)'}">${RC.fan}</svg></div>
+            <div class="i-ring ${on ? 'rc' : ''}" data-role="tp-ring"><svg viewBox="0 0 24 24" width="28" height="28" class="${on ? 'tileSpin' : ''}" style="color:${on ? 'rgba(0,225,255,0.95)' : 'rgba(180,180,180,0.45)'}">${RC.fan}</svg></div>
             <div class="on-badge ${on ? 'ba-c' : 'ba-off'}">${on ? 'ON' : 'OFF'}</div>
           </div>
           <div class="bot-h">
@@ -3907,7 +3912,7 @@ class CasaLuna extends HTMLElement {
       dcard = `
         <div class="dcard ${on ? 'on-gr' : ''}" style="width:100%">
           <div class="top-h ${on ? 'bg-gr' : ''}">
-            <div class="i-ring ${on ? 'rgr' : ''}" id="tpRing"><svg id="tpSvg" viewBox="0 0 24 24" width="28" height="28" class="${on ? 'tileSocketOn' : ''}">${RC.plug}</svg></div>
+            <div class="i-ring ${on ? 'rgr' : ''}" data-role="tp-ring"><svg viewBox="0 0 24 24" width="28" height="28" class="${on ? 'tileSocketOn' : ''}">${RC.plug}</svg></div>
             <div class="on-badge ${on ? 'ba-gr' : 'ba-off'}">${on ? 'ON' : 'OFF'}</div>
           </div>
           <div class="bot-h">
@@ -3975,7 +3980,7 @@ class CasaLuna extends HTMLElement {
       if (e.target.id === 'tpMore') { ov.remove(); this._fireMoreInfo(id); return; }
     });
     // ring/icon tap toggles (light, switch via ring; fan/switch via button)
-    ov.querySelector('#tpRing')?.addEventListener('click', () => { this._hass.callService('homeassistant', 'toggle', { entity_id: id }); ov.remove(); });
+    ov.querySelector('[data-role="tp-ring"]')?.addEventListener('click', () => { this._hass.callService('homeassistant', 'toggle', { entity_id: id }); ov.remove(); });
     ov.querySelector('#tpFanToggle')?.addEventListener('click', () => { this._hass.callService('homeassistant', 'toggle', { entity_id: id }); ov.remove(); });
     ov.querySelector('#tpSwToggle')?.addEventListener('click', () => { ov.remove(); this._confirmAction(label, on, () => this._hass.callService('homeassistant', 'toggle', { entity_id: id })); });
     // light brightness drag/click (room-card behavior: brightness = pct*2.55)
@@ -4252,7 +4257,7 @@ class CasaLuna extends HTMLElement {
     this._setTxt('#v_bdis', this._kwhEnt(c.batt_dis));
 
     /* Right-hand card keeps the original visual design but now represents the 12V DC system. */
-    this._setTxt('#invStatus', c.dc12_solar_voltage ? `Solar: ${this._decEnt(c.dc12_solar_voltage)} V` : '12V system');
+    this._setTxt('#invStatus', c.dc12_power ? `Power: ${this._powerEnt(c.dc12_power)}` : c.dc12_solar_voltage ? `Solar: ${this._decEnt(c.dc12_solar_voltage)} V` : '12V system');
     const errEl = this._q('#invErr');
     if (errEl) {
       errEl.textContent = c.dc12_battery_voltage ? `Battery: ${this._decEnt(c.dc12_battery_voltage)} V` : '';
@@ -4264,19 +4269,12 @@ class CasaLuna extends HTMLElement {
     this._setTxt('#dcPhaseSupplyV', dcVoltage(c.dc12_supply_voltage));
     this._setTxt('#dcPhaseBatteryV', dcVoltage(c.dc12_battery_voltage));
     this._setTxt('#dcPhaseCurrent', c.dc12_current ? `${this._decEnt(c.dc12_current)} A` : '--');
-    this._setTxt('#dc12SolarV', dcVoltage(c.dc12_solar_voltage));
-    this._setTxt('#dc12SupplyV', dcVoltage(c.dc12_supply_voltage));
-    this._setTxt('#dc12BatteryV', dcVoltage(c.dc12_battery_voltage));
-    this._setTxt('#dc12Current', c.dc12_current ? `${this._decEnt(c.dc12_current)} A` : '--');
-    this._setTxt('#dc12Power', c.dc12_power ? this._powerEnt(c.dc12_power) : '--');
     /* phase flip tile: front = grid phase power/voltage; back = configured 12V readings. */
     const phaseVal = (id) => { const v = this._num(id, NaN); return Number.isFinite(v) ? v.toFixed(1) : '--'; };
     const phaseKw = (id) => { const v = this._watts(id, NaN); return Number.isFinite(v) ? `${this._dec(v / 1000)}` : '--'; };
     const setRow = (sel, vals) => { const el = this._q(sel); if (el) { const h = vals.map(v => `<span style="flex:1;text-align:center">${v}</span>`).join(''); if (el._h !== h) { el.innerHTML = h; el._h = h; } } };
     setRow('#phaseRowP', [phaseKw(c.grid_phase_a), phaseKw(c.grid_phase_b), phaseKw(c.grid_phase_c)]);
     setRow('#phaseRowV', [phaseVal(c.grid_phase_a_volt), phaseVal(c.grid_phase_b_volt), phaseVal(c.grid_phase_c_volt)]);
-    setRow('#invRowP', [phaseKw(c.inv_l1_power), phaseKw(c.inv_l2_power), phaseKw(c.inv_l3_power)]);
-    setRow('#invRowV', [phaseVal(c.inv_l1_volt), phaseVal(c.inv_l2_volt), phaseVal(c.inv_l3_volt)]);
     const dcCurrent = this._num(c.dc12_current, NaN);
     const loadPct = Number.isFinite(dcCurrent) ? Math.min(100, Math.abs(dcCurrent) / Math.max(c.dc12_max_current || 1, 1) * 100) : 0;
     const loadCol = !Number.isFinite(dcCurrent) ? '#7fa3c4' : loadPct >= 90 ? '#ff5040' : loadPct >= 70 ? '#ffaa28' : '#46e05a';
@@ -5483,8 +5481,7 @@ class CasaLunaEditor extends HTMLElement {
     shell.appendChild(section('toggles', '🎚️', 'Toggles', [
       info('Enable or disable cards. Disabled cards are hidden from the dashboard.'),
       switchRow('_show_bars', '📊 PV / PWR bars', 'Both bottom capsule bars', true),
-      switchRow('_show_phase', '🔄 AC 3-Phase monitor', 'Show or hide the original Grid Phases / AC Source flip card. This does not affect the 12V card.', true),
-      switchRow('dc12_enabled', '🔋 12V current-gauge tile', 'Show or hide the 12V current gauge on the right. The 12V readings remain on the back of Grid Phases.', true),
+      switchRow('_show_phase', '🔄 Grid Phases card', 'Show or hide the Grid Phases card. Its reverse side shows your 12V readings.', true),
       switchRow('_show_battstats', '🔋 Battery value tile', 'Show battery stats (flip → 3 pack voltages)', true),
       switchRow('_show_pvtile', '☀️ PV PWR/VOLT tile', 'Show the small PV power/voltage tile next to the battery', true),
       switchRow('_show_ev', '🚗 EV / car charger tile', 'Show the EV charger tile', false),
@@ -5543,7 +5540,7 @@ class CasaLunaEditor extends HTMLElement {
     ]));
 
     shell.appendChild(section('phaseflip', '🔄', 'AC 3-Phase Monitor', [
-      info('Optional AC monitor: the front shows grid L1–L3 power/voltage, and the back shows your AC source L1–L3 readings.'),
+      info('The front shows grid L1–L3 power/voltage. Rotate it to see the configured 12V solar, supply, battery, and current readings.'),
       textField('label_phase_title', 'Grid side title', 'GRID PHASES'),
       eg('grid_phase_a', 'PHASE L1'),
       eg('grid_phase_a_volt', 'L1 VOLT'),
@@ -5552,13 +5549,13 @@ class CasaLunaEditor extends HTMLElement {
       eg('grid_phase_c', 'PHASE L3'),
       eg('grid_phase_c_volt', 'L3 VOLT'),
       divider(),
-      textField('label_inv_title', 'AC source title', 'AC SOURCE'),
-      eg('inv_l1_power', 'AC Source L1 Power'),
-      eg('inv_l2_power', 'AC Source L2 Power'),
-      eg('inv_l3_power', 'AC Source L3 Power'),
-      eg('inv_l1_volt', 'AC Source L1 Volt'),
-      eg('inv_l2_volt', 'AC Source L2 Volt'),
-      eg('inv_l3_volt', 'AC Source L3 Volt'),
+      info('Optional AC source sensors below are used only for AC load and flow calculations; they are not displayed on the flip card.'),
+      eg('inv_l1_power', 'AC source L1 power'),
+      eg('inv_l2_power', 'AC source L2 power'),
+      eg('inv_l3_power', 'AC source L3 power'),
+      eg('inv_l1_volt', 'AC source L1 voltage'),
+      eg('inv_l2_volt', 'AC source L2 voltage'),
+      eg('inv_l3_volt', 'AC source L3 voltage'),
       divider(),
       info('Optional: choose the AC source output power when it differs from total household consumption.'),
       eg('inverter_output_power', 'AC Source Output Power'),

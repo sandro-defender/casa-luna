@@ -39,7 +39,9 @@ $required = @(
   'Start Here',
   'dc12_max_current',
   'label_grid_indicator',
-  'Left-navigation detail panels are standalone cards'
+  'Left-navigation detail panels are standalone cards',
+  'clPanelOut',
+  "panel.classList.add('closing')"
 )
 
 foreach ($marker in $required) {

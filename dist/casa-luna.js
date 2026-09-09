@@ -1469,6 +1469,8 @@ class CasaLuna extends HTMLElement {
         transform-origin:left center; overflow:hidden; }
       .detail.open { display:block; animation:clPanelIn .28s cubic-bezier(.2,.7,.3,1); }
       @keyframes clPanelIn { from{ transform:scaleX(.02); opacity:.4 } to{ transform:scaleX(1); opacity:1 } }
+      .detail.closing { display:block; pointer-events:none; animation:clPanelOut .22s cubic-bezier(.55,0,.8,.35) forwards; }
+      @keyframes clPanelOut { from{ transform:scaleX(1); opacity:1 } to{ transform:scaleX(.02); opacity:0 } }
       .detail-inner { position:absolute; inset:0; overflow-y:auto; padding:18px 24px; }
       .detail h3 { color:#5bc8ff; font-size:22px; letter-spacing:.05em; margin-bottom:2px; }
       .detail .dsub { color:#7fa3c4; font-size:12px; margin-bottom:16px; }
@@ -2546,10 +2548,11 @@ class CasaLuna extends HTMLElement {
     }
     this._activeView = view;
     this._panelBusy = false;
+    clearTimeout(this._detailCloseTimer);
     this.shadowRoot.querySelectorAll('.navtile').forEach(t =>
       t.classList.toggle('nav-active', t.dataset.view === view));
     /* re-trigger slide animation on swap */
-    panel.classList.remove('open');
+    panel.classList.remove('open', 'closing');
     void panel.offsetWidth;
     panel.classList.add('open');
     this._renderDetail();
@@ -2557,7 +2560,12 @@ class CasaLuna extends HTMLElement {
 
   _closeView() {
     const panel = this._q('#detailPanel');
-    if (panel) panel.classList.remove('open');
+    if (panel?.classList.contains('open')) {
+      panel.classList.remove('open');
+      panel.classList.add('closing');
+      clearTimeout(this._detailCloseTimer);
+      this._detailCloseTimer = setTimeout(() => panel.classList.remove('closing'), 240);
+    }
     this._activeView = 'dashboard';
     this._panelBusy = false;
     this.shadowRoot.querySelectorAll('.navtile').forEach(t => t.classList.remove('nav-active'));

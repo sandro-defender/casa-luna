@@ -1725,7 +1725,7 @@ class CasaLuna extends HTMLElement {
     const irShift = IR[0] - irX;
     const irW = IR[2] + irShift;
     const lower = `
-    <div class="box" id="dc12System" style="left:${IB[0]}px;top:${IB[1]}px;width:${IB[2]}px;height:${IB[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35));${c.dc12_enabled === false ? "display:none" : ""}">
+    <div class="box" id="dc12System" style="left:${IB[0]}px;top:${IB[1]}px;width:${IR[0] + IR[2] - IB[0]}px;height:${IB[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35));${c.dc12_enabled === false ? "display:none" : ""}">
       <div class="val" style="position:absolute;left:14px;top:10px;font-size:14px;color:#cce4ff">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
       <div style="position:absolute;left:14px;right:14px;top:38px;display:grid;grid-template-columns:1fr 1fr;gap:8px 12px">
         <div><div style="font-size:9px;color:#ffd24a;letter-spacing:.06em">SOLAR</div><div class="val" id="dc12SolarV" style="font-size:18px;color:#ffd24a">--</div></div>
@@ -1735,7 +1735,7 @@ class CasaLuna extends HTMLElement {
       </div>
       <div id="dc12Power" style="position:absolute;right:14px;bottom:9px;font-size:12px;font-weight:700;color:#d8eeff">--</div>
     </div>
-    <div class="box" style="left:${irX}px;top:${IR[1]}px;width:${irW}px;height:${IR[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35))">
+    <div class="box" style="display:none;left:${irX}px;top:${IR[1]}px;width:${irW}px;height:${IR[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35))">
       ${!c._show_phase ? `
       <div style="position:absolute;left:10px;top:10px;width:${irShift - 20}px;height:${IR[3] - 20}px;border-radius:10px;
         background:rgba(20,40,70,.5);border:1px solid rgba(150,200,255,.25);padding:9px 11px;box-sizing:border-box;overflow:hidden">
@@ -1907,8 +1907,8 @@ class CasaLuna extends HTMLElement {
       <div class="val" id="modeVal" style="position:absolute;left:16px;top:33px;font-size:${Number(c.sz_mode) || 17}px;color:#22c3ff">--</div>
       <div style="position:absolute;left:14px;right:14px;top:66px;height:1px;background:rgba(150,200,255,.18)"></div>
       <div style="position:absolute;left:16px;right:14px;top:76px;display:flex;align-items:center;justify-content:space-between;gap:4px">
-        <span id="invStateLbl" style="font-size:11px;color:#7fa3c4;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">${esc(c.label_inverter_state || 'INV STATE')}</span>
-        <span class="val" id="invState" data-entity="${c.inverter_state || ''}" style="font-size:${Number(c.sz_invstate) || 13}px;font-weight:650;color:#39d353;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">--</span>
+        <span id="invStateLbl" style="font-size:11px;color:#7fa3c4;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">12V BATTERY</span>
+        <span class="val" id="invState" data-entity="${c.dc12_battery_voltage || ''}" style="font-size:${Number(c.sz_invstate) || 13}px;font-weight:650;color:#39d353;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">--</span>
       </div>
     </div>`;
     const [cx0, cy0, cw0, ch0] = SL.r_cyl;
@@ -4134,10 +4134,7 @@ class CasaLuna extends HTMLElement {
     const mv = this._q('#modeVal');
     if (mv) { mv.textContent = this._t(modeTxt); mv.style.color = modeCol; }
     // inverter state (work_mode entity) — e.g. On-Grid / Off-Grid / Backup
-    const invSo = this._stateObj(c.inverter_state);
-    const invSt = invSo && this._hass.formatEntityState ? this._hass.formatEntityState(invSo)
-                : (invSo ? this._cap(invSo.state) : '');
-    this._setTxt('#invState', invSt || '--');
+    this._setTxt('#invState', c.dc12_battery_voltage ? `${this._decEnt(c.dc12_battery_voltage)} V` : '--');
 
     // Khan-style battery fill — single or dual (split) cylinder
     if (c._show_battery2) {

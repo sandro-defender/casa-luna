@@ -85,7 +85,7 @@ Available custom icon names: `gear`, `home`, `bolt`, `plug`, `batt`, `therm`, `s
 
 ## Separate 12V DC system
 
-The former inverter/phase tile is now a dedicated **12V DC System** card. Configure it in the editor with your separate DC sensors:
+The entire former inverter area is now a dedicated **12V DC System** card. Configure it in the editor with your separate DC sensors:
 
 - `dc12_solar_voltage`
 - `dc12_supply_voltage`

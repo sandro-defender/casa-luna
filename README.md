@@ -75,6 +75,28 @@ All entity fields are optional. Empty fields render as `--` or hide the related 
 
 Every entity row in the visual editor includes a **Display Title** field. Use it to rename the entity anywhere it appears in Casa Luna’s reusable view tiles, controls, and popups.
 
+## Edit all card text in YAML
+
+Use `text_overrides` to replace the built-in dashboard captions in one searchable YAML block. The card keeps the current text unless you change a value. Entity-specific names remain in `title_<field>` or `label_<field>`.
+
+```yaml
+text_overrides:
+  HEADER_SUBTITLE: "ENERGY • AUTOMATION • SECURITY • by the Khan"
+  DASHBOARD: "DASHBOARD"
+  ENERGY: "ENERGY"
+  BATTERY: "BATTERY"
+  SECURITY: "SECURITY"
+  LIGHTING: "LIGHTING"
+  "Production & Flow": "Production & Flow"
+  "TODAY'S CONSUMPTION": "TODAY'S CONSUMPTION"
+  "TODAY'S PRODUCTION": "TODAY'S PRODUCTION"
+  "RECENT EVENTS": "RECENT EVENTS"
+  "GRID PHASES": "GRID PHASES"
+  "DC CURRENT": "DC CURRENT"
+```
+
+The full starter map is included automatically in a new card’s defaults and is written to the WallPanel configuration below. Keep the left-hand text exactly as shown; replace only the value on the right.
+
 ## WLED
 
 Set `wled_entity` to your WLED `light.*` entity in the **Lighting View** editor. It appears in its own WLED section in the Lighting popup, with a direct on/off button and a brightness slider. `wled_name` changes the displayed name.

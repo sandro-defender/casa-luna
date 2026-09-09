@@ -445,6 +445,19 @@ const LANG = {
   },
 };
 
+/* YAML text catalog. Every text passed through _t() is listed with its current
+   English value, so it can be overridden without editing the card source. */
+const DEFAULT_TEXT_OVERRIDES = Object.freeze({
+  ...Object.fromEntries(Object.keys(LANG.de).map(text => [text, text])),
+  HEADER_SUBTITLE: 'ENERGY • AUTOMATION • SECURITY • by the Khan',
+  'AC System Controls': 'AC System Controls',
+  'Power System & ESP': 'Power System & ESP',
+  'AC 3-Phase Monitor': 'AC 3-Phase Monitor',
+  '12V DC SYSTEM': '12V DC SYSTEM',
+  'DC CURRENT': 'DC CURRENT',
+  'GRID PWR': 'GRID PWR',
+});
+
 /* ── canonical geometry (measured from template, scaled 1536→1500) ── */
 const SL = {
   nav:  { x:20, w:211, h:77, tops:[146,229,312,395,478,561,644,727,810] },
@@ -754,6 +767,7 @@ class CasaLuna extends HTMLElement {
       sz_prodcons_total: 15, sz_pvtile: 14,
       sz_bottile_label: 12, sz_bottile_value: 15,
       sz_totals_value: 16, sz_invload: 22,
+      text_overrides: DEFAULT_TEXT_OVERRIDES,
       /* —— per-entity labels (customizable via ✏️ in each section) —— */
       label_grid_import_today: 'GRID IMPORT', label_grid_export_energy: 'GRID EXPORT',
       label_consump: 'LOAD',
@@ -787,7 +801,12 @@ class CasaLuna extends HTMLElement {
 
   setConfig(config) {
     const stub = CasaLuna.getStubConfig();
-    const merged = { ...stub, ...config };
+    const userTextOverrides = config?.text_overrides;
+    const merged = {
+      ...stub, ...config,
+      text_overrides: { ...stub.text_overrides, ...(userTextOverrides && typeof userTextOverrides === 'object' ? userTextOverrides : {}) },
+    };
+    this._userTextOverrides = userTextOverrides && typeof userTextOverrides === 'object' ? userTextOverrides : {};
     /* Casa Luna now supports one battery and one PV input. Keep older YAML harmless
        by ignoring retired feature flags instead of rendering legacy UI. */
     merged._show_battery2 = false;
@@ -1521,7 +1540,16 @@ class CasaLuna extends HTMLElement {
 
   /* ═══════════════════════ BUILD — full DOM (runs once per config) ═══════════════════════ */
   /* i18n: translate a card caption (English string is the key + fallback) */
-  _t(s) { const m = LANG[this._lang]; return (m && m[s] != null) ? m[s] : s; }
+  _t(s) {
+    const override = this._userTextOverrides?.[s];
+    if (typeof override === 'string' && override.trim()) return override;
+    const m = LANG[this._lang];
+    return (m && m[s] != null) ? m[s] : s;
+  }
+  _tx(key, fallback) {
+    const override = this._userTextOverrides?.[key];
+    return typeof override === 'string' && override.trim() ? override : this._t(fallback);
+  }
   /* a config copy whose untouched label_* defaults are swapped for the active language */
   _localizedConfig() {
     const c = { ...this.config };
@@ -1590,7 +1618,7 @@ class CasaLuna extends HTMLElement {
           text-shadow:none;
           filter:drop-shadow(0 0 18px rgba(58,123,255,0.55)) drop-shadow(0 0 6px rgba(128,179,255,0.7))">${esc(c.title || 'CASA LUNA')}</div>
         <div id="hSubtitle" style="margin-top:5px;line-height:1;font-family:'Bahnschrift','Arial Narrow','Segoe UI',sans-serif;font-size:11.2px;font-weight:400;
-          letter-spacing:4.8px;color:#a8cae6;text-align:center">ENERGY • AUTOMATION • SECURITY • by the Khan</div>
+          letter-spacing:4.8px;color:#a8cae6;text-align:center">${esc(this._tx('HEADER_SUBTITLE', 'ENERGY • AUTOMATION • SECURITY • by the Khan'))}</div>
       </div>
     </div>`;
 

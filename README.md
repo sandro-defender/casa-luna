@@ -73,6 +73,8 @@ dc12_current: sensor.dc_current
 
 All entity fields are optional. Empty fields render as `--` or hide the related optional tile.
 
+Every entity row in the visual editor includes a **Display Title** field. Use it to rename the entity anywhere it appears in Casa Luna’s reusable view tiles, controls, and popups.
+
 ## WLED
 
 Set `wled_entity` to your WLED `light.*` entity in the **Lighting View** editor. It appears in its own WLED section in the Lighting popup, with a direct on/off button and a brightness slider. `wled_name` changes the displayed name.

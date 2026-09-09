@@ -2429,11 +2429,22 @@ class CasaLuna extends HTMLElement {
 
   _wHead(text) { return `<div class="pw-head">${esc(text)}</div>`; }
 
+  /* Every editor entity can optionally use title_<config_key> as its display name.
+     Existing specialised names (for lights, relays, etc.) still take precedence because
+     callers pass them in as the fallback label. */
+  _displayLabel(entId, fallback) {
+    if (!entId) return fallback;
+    const c = this.config || {};
+    const key = Object.keys(c).find(k => c[k] === entId && typeof c[`title_${k}`] === 'string' && c[`title_${k}`].trim());
+    return key ? c[`title_${key}`].trim() : fallback;
+  }
+
   /* wrap items in an N-column grid (compact tile layout) */
   _wGrid(cols, html) { return `<div class="pw-grid" style="grid-template-columns:repeat(${cols},1fr)">${html}</div>`; }
 
   /* compact metric TILE: icon / label / value stacked (taps to more-info / history) */
   _wTile(icon, label, entId, unit = '', isPower = false) {
+    label = this._displayLabel(entId, label);
     const has = !!entId;
     const raw = has ? this._st(entId) : null;
     const bad = raw == null || raw === '' || /^(unavailable|unknown)$/i.test(raw);
@@ -2461,6 +2472,7 @@ class CasaLuna extends HTMLElement {
 
   /* compact toggle TILE: icon / label / switch stacked */
   _wToggleTile(icon, label, entId) {
+    label = this._displayLabel(entId, label);
     const has = !!entId;
     const on = has && ['on', 'open', 'home', 'unlocked', 'playing'].includes(String(this._st(entId)).toLowerCase());
     return `<div class="pw-ttile">
@@ -2493,6 +2505,7 @@ class CasaLuna extends HTMLElement {
 
   /* read-only metric row: icon + label + live value (taps to more-info if entity set) */
   _wRow(icon, label, entId, unit = '') {
+    label = this._displayLabel(entId, label);
     const has = !!entId;
     const st = has ? this._st(entId) : null;
     const val = st == null ? '--' : `${st}${unit ? ' ' + unit : ''}`;
@@ -2512,6 +2525,7 @@ class CasaLuna extends HTMLElement {
 
   /* slider row for number entities (min/max/step pulled from entity attrs when present) */
   _wSlider(icon, label, entId, fallbackMin = 0, fallbackMax = 100, fallbackStep = 1, unit = '') {
+    label = this._displayLabel(entId, label);
     const has = !!entId;
     const cur = has ? this._num(entId, NaN) : NaN;
     const mnV = has && Number.isFinite(this._numRaw(this._attr(entId, 'min'))) ? +this._attr(entId, 'min') : fallbackMin;
@@ -2530,6 +2544,7 @@ class CasaLuna extends HTMLElement {
 
   /* select/dropdown row for select entities */
   _wSelect(icon, label, entId, fallbackOptions = []) {
+    label = this._displayLabel(entId, label);
     const has = !!entId;
     const opts = has ? (this._attr(entId, 'options') || fallbackOptions) : fallbackOptions;
     const cur = has ? this._st(entId) : null;
@@ -2542,6 +2557,7 @@ class CasaLuna extends HTMLElement {
 
   /* button row for button entities or service calls */
   _wButton(icon, label, entId, btnText = 'Press', danger = false) {
+    label = this._displayLabel(entId, label);
     const has = !!entId;
     return `<div class="pw">
       <span class="pw-ic">${icon}</span><span class="pw-lbl">${esc(label)}</span>
@@ -2664,6 +2680,7 @@ class CasaLuna extends HTMLElement {
 
   /* light control: each configured light is a large, direct on/off button. */
   _wLight(label, entId) {
+    label = this._displayLabel(entId, label);
     const has = !!entId;
     const st = has ? this._st(entId) : null;
     const on = String(st).toLowerCase() === 'on';
@@ -2682,6 +2699,7 @@ class CasaLuna extends HTMLElement {
   /* Dedicated WLED card: the WLED entity is separate from ordinary room lights and
      keeps its brightness slider available in the Lighting popup. */
   _wWled(label, entId) {
+    label = this._displayLabel(entId, label);
     const has = !!entId;
     const on = has && String(this._st(entId)).toLowerCase() === 'on';
     const brightness = has ? this._attr(entId, 'brightness') : null;
@@ -5194,13 +5212,10 @@ class CasaLunaEditor extends HTMLElement {
     };
 
     /* ═══ SECTIONS ═══ */
-    /* eg(entityKey, defaultLabel) → tap-to-expand entity row, picker only.
-       egL(...) → same, PLUS a Label rename input — use only for captions the card's
-       render code actually reads back (label_<entityKey>). Most captions are fixed
-       template text, not config-driven, so a rename input for them would save to
-       config and silently do nothing — eg() now defaults to not offering it. */
+    /* Every entity row offers its own display-title field. Reusable dashboard widgets
+       read title_<entityKey>, so a renamed entity is reflected in its card or popup. */
     const eg = (entityKey, defaultLabel) =>
-      entityRow(entityKey, defaultLabel, null);
+      entityRow(entityKey, defaultLabel, `title_${entityKey}`);
     const egL = (entityKey, defaultLabel) =>
       entityRow(entityKey, defaultLabel, `label_${entityKey}`);
 

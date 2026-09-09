@@ -93,9 +93,9 @@ The former inverter area keeps its original two-card visual layout, repurposed a
 - `dc12_supply_voltage`
 - `dc12_battery_voltage`
 - `dc12_current`
-- `dc12_power` (optional)
+- `dc12_power` (optional; drives the top PWR indicator)
 
-This card is separate from your 220V/AC monitoring. Set `dc12_enabled: false` to hide it. The pre-change module is preserved as `dist/casa-luna.backup.js`.
+This card is separate from your 220V/AC monitoring. The editor lets you rename the card, each DC sensor label, and the top PWR indicator; set its maximum power for the indicator scale. Set `dc12_enabled: false` to hide it. The pre-change module is preserved as `dist/casa-luna.backup.js`.
 
 ## Battery packs
 

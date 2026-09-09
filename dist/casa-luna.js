@@ -609,7 +609,8 @@ class CasaLuna extends HTMLElement {
       inverter_error: '',
       dc12_enabled: true, dc12_name: '12V DC SYSTEM',
       dc12_solar_voltage: '', dc12_supply_voltage: '', dc12_battery_voltage: '',
-      dc12_current: '', dc12_power: '',
+      dc12_current: '', dc12_power: '', dc12_max_power: 500,
+      label_pv_indicator: 'PV', label_pwr_indicator: '12V PWR',
       today_batt_chg: '',
       today_load: '',
       battery_soc: '',
@@ -1728,12 +1729,12 @@ class CasaLuna extends HTMLElement {
     <div class="box" id="dc12System" style="left:${IB[0]}px;top:${IB[1]}px;width:${IB[2]}px;height:${IB[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35));${c.dc12_enabled === false ? "display:none" : ""}">
       <div class="val" style="position:absolute;left:14px;top:10px;font-size:14px;color:#cce4ff">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
       <div style="position:absolute;left:14px;right:14px;top:38px;display:grid;grid-template-columns:1fr 1fr;gap:8px 12px">
-        <div><div style="font-size:9px;color:#ffd24a;letter-spacing:.06em">SOLAR</div><div class="val" id="dc12SolarV" style="font-size:18px;color:#ffd24a">--</div></div>
-        <div><div style="font-size:9px;color:#7fd4ff;letter-spacing:.06em">SUPPLY</div><div class="val" id="dc12SupplyV" style="font-size:18px;color:#7fd4ff">--</div></div>
-        <div><div style="font-size:9px;color:#7ce05a;letter-spacing:.06em">BATTERY</div><div class="val" id="dc12BatteryV" style="font-size:18px;color:#7ce05a">--</div></div>
-        <div><div style="font-size:9px;color:#a8cae6;letter-spacing:.06em">CURRENT</div><div class="val" id="dc12Current" style="font-size:18px;color:#eaf4ff">--</div></div>
+        <div><div style="font-size:9px;color:#ffd24a;letter-spacing:.06em">${esc(c.title_dc12_solar_voltage || 'SOLAR')}</div><div class="val" id="dc12SolarV" style="font-size:18px;color:#ffd24a">--</div></div>
+        <div><div style="font-size:9px;color:#7fd4ff;letter-spacing:.06em">${esc(c.title_dc12_supply_voltage || 'SUPPLY')}</div><div class="val" id="dc12SupplyV" style="font-size:18px;color:#7fd4ff">--</div></div>
+        <div><div style="font-size:9px;color:#7ce05a;letter-spacing:.06em">${esc(c.title_dc12_battery_voltage || 'BATTERY')}</div><div class="val" id="dc12BatteryV" style="font-size:18px;color:#7ce05a">--</div></div>
+        <div><div style="font-size:9px;color:#a8cae6;letter-spacing:.06em">${esc(c.title_dc12_current || 'CURRENT')}</div><div class="val" id="dc12Current" style="font-size:18px;color:#eaf4ff">--</div></div>
       </div>
-      <div id="dc12Power" style="position:absolute;right:14px;bottom:9px;font-size:12px;font-weight:700;color:#d8eeff">--</div>
+      <div style="position:absolute;right:14px;bottom:9px;font-size:12px;font-weight:700;color:#d8eeff"><span style="font-size:9px;color:#607892;letter-spacing:.06em">${esc(c.title_dc12_power || 'POWER')}</span> <span id="dc12Power">--</span></div>
     </div>
     <div class="box" style="left:${irX}px;top:${IR[1]}px;width:${irW}px;height:${IR[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35))">
       ${!c._show_phase ? `
@@ -2209,7 +2210,7 @@ class CasaLuna extends HTMLElement {
           <div id="wxLayer"></div>
           ${(() => { const dimOp = Number(c.edge_dim_opacity); return Number.isFinite(dimOp) && dimOp > 0 ? `<div class="dim" style="opacity:${Math.min(100, dimOp) / 100}"></div>` : ''; })()}
           ${header}${arc}${navToggle}${nav}
-          ${c._show_bars ? barHtml('pv', SL.pv, 'PV', '#43ea13', 10) + barHtml('pwr', SL.pwr, 'PWR', '#0a8aea', 10) : ''}
+          ${c._show_bars ? barHtml('pv', SL.pv, c.label_pv_indicator || 'PV', '#43ea13', 10) + barHtml('pwr', SL.pwr, c.label_pwr_indicator || '12V PWR', '#0a8aea', 10) : ''}
           ${evBanner}
           ${statCont}${stats}${lower}${invTiles}
           ${mode}${cylinder}${battStats}${pvTileBox}${prod}${cons}${events}
@@ -4047,7 +4048,9 @@ class CasaLuna extends HTMLElement {
       this._setTxt('#evStateVal', stSo ? (this._hass?.formatEntityState?.(stSo) ?? this._cap(stSo.state)) : '--');
     }
     this._fillBar('pv', pvW / Math.max(c.pv_max_power, 1), '#43ea13', 10);
-    this._fillBar('pwr', loadW / Math.max(c.inverter_max_power, 1), '#0a8aea', 10);
+    const dc12W = this._watts(c.dc12_power, NaN);
+    this._fillBar('pwr', Number.isFinite(dc12W) ? dc12W / Math.max(c.dc12_max_power || 1, 1) : 0, '#0a8aea', 10);
+    this._setTxt('#pwrPct', Number.isFinite(dc12W) ? this._powerStr(dc12W) : '--');
 
     /* GOODWE box EMS/Operation mode card — only present when phase tile is hidden
        (the freed-space card). Reuses Energy View's already-configured entities. */
@@ -5348,6 +5351,8 @@ class CasaLunaEditor extends HTMLElement {
     shell.appendChild(section('dc12', '🔋', '12V DC System', [
       info('This is separate from the 220V/AC system. Set the live sensors for your 12V solar panel, power supply, and battery.'),
       textField('dc12_name', 'Tile title', '12V DC SYSTEM'),
+      textField('label_pwr_indicator', 'PWR indicator label', '12V PWR'),
+      numberField('dc12_max_power', 'PWR indicator maximum', 1, 5000, 1, 'W'),
       eg('dc12_solar_voltage', 'Solar voltage'),
       eg('dc12_supply_voltage', '12V power supply voltage'),
       eg('dc12_battery_voltage', '12V battery voltage'),

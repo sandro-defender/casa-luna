@@ -564,7 +564,7 @@ const glowShadow = g => `inset 0 1px 0 rgba(120,210,255,.28),inset 0 -1px 0 rgba
    instead of every call site re-coercing defensively. Coerced once in setConfig(). */
 const NUMERIC_CONFIG_KEYS = [
   'battery_full_ah', 'battery_full_wh',
-  'inverter_max_power', 'pv_max_power', 'lower_section_offset', 'charger_battery_capacity_wh',
+  'pv_max_power', 'lower_section_offset', 'charger_battery_capacity_wh',
   'thresh_temp_warn', 'thresh_temp_critical', 'thresh_cell_v_low', 'thresh_cell_v_critical', 'thresh_cell_v_high',
   'thresh_soc_low', 'thresh_soc_critical', 'thresh_load_warn', 'thresh_load_critical',
   'thresh_endurance_low', 'thresh_endurance_crit',
@@ -605,8 +605,6 @@ class CasaLuna extends HTMLElement {
       today_pv: '',
       total_pv: '',
       total_import: '', total_export: '',
-      inverter_state: '',
-      inverter_error: '',
       dc12_enabled: true, dc12_name: '12V DC SYSTEM',
       dc12_solar_voltage: '', dc12_supply_voltage: '', dc12_battery_voltage: '',
       dc12_current: '', dc12_power: '', dc12_max_power: 500,
@@ -626,17 +624,15 @@ class CasaLuna extends HTMLElement {
       battery_cell_voltage: '',
       battery_min_cell: '',
       battery_max_cell: '',
-      inv_temp: '',
       batt_dis: '',
       battery_full_ah: 0, battery_full_wh: 0, battery_cap_unit: 'ah',
-      inverter_max_power: 6000, pv_max_power: 7500,
+      pv_max_power: 7500,
       lower_section_offset: 0,
       charger_state: '', charger_current: '', charger_power: '',
       charger_soc: '', charger_eta: '', charger_battery_capacity_wh: 0,
       sun: 'sun.sun',
       weather_entity: 'weather.home',
       weather_temp_entity: '', weather_wind_entity: '', weather_dir_entity: '',
-      inverter_name: '',
       label_bms_temp: 'BMS TEMP', label_endurance: 'ENDURANCE',
       label_batt_current: 'BATT CURRENT', label_capacity: 'CAPACITY',
       pv1_voltage: '',
@@ -677,7 +673,7 @@ class CasaLuna extends HTMLElement {
       auto_discover_lighting: false, auto_discover_automation: false,
       events_entities: [],
       /* ── phase / inverter flip tile ── */
-      label_phase_title: 'GRID PHASES', label_inv_title: 'INVERTER',
+      label_phase_title: 'GRID PHASES', label_inv_title: 'AC SOURCE',
       inv_l1_power: '', inv_l2_power: '', inv_l3_power: '',
       inverter_output_power: '',
       inv_l1_volt: '', inv_l2_volt: '', inv_l3_volt: '',
@@ -803,9 +799,55 @@ class CasaLuna extends HTMLElement {
       const n = Number(merged[k]);
       merged[k] = Number.isFinite(n) ? n : stub[k];
     }
+    if (merged._demo_mode) this._populateDemoEntities(merged);
     this.config = merged;
     this._built = false;
     if (this._hass) this._build();
+  }
+
+  /* Demo mode must exercise the whole card, including fields the user has not
+     configured yet. Keep real selections untouched and supply local-only IDs
+     for the empty entity slots. */
+  _populateDemoEntities(config) {
+    const directKeys = new Set([
+      'pv1_power', 'pv_total_power', 'grid_active_power', 'grid_export_energy', 'consump',
+      'today_pv', 'total_pv', 'total_import', 'total_export', 'today_batt_chg', 'today_load',
+      'battery_soc', 'battery_power', 'battery_current', 'battery_voltage', 'battery_temp1',
+      'battery_temp2', 'battery_mos', 'battery_cell_voltage', 'battery_min_cell', 'battery_max_cell',
+      'batt_dis', 'charger_state', 'charger_current', 'charger_power', 'charger_soc', 'charger_eta',
+      'weather_temp_entity', 'weather_wind_entity', 'weather_dir_entity', 'pv1_voltage',
+      'battery_pack1_voltage', 'battery_pack2_voltage', 'battery_pack3_voltage', 'grid_import_today',
+      'grid_voltage', 'grid_phase_a', 'grid_phase_b', 'grid_phase_c', 'grid_phase_a_volt',
+      'grid_phase_b_volt', 'grid_phase_c_volt', 'inv_l1_power', 'inv_l2_power', 'inv_l3_power',
+      'inverter_output_power', 'inv_l1_volt', 'inv_l2_volt', 'inv_l3_volt',
+      'dc12_solar_voltage', 'dc12_supply_voltage', 'dc12_battery_voltage', 'dc12_current', 'dc12_power',
+    ]);
+    const isViewEntity = key => /^(sec_|clim_|plug_|light|wled_|auto_|tuya_|en_|bat_|sys_)/.test(key)
+      && !/(?:_name$|_enabled$|_icon$|_title$|_subtitle$|_capacity_wh$)/.test(key)
+      && !/^auto_discover_/.test(key);
+    const isEntity = key => directKeys.has(key) || isViewEntity(key) || /^_extra_tile_\d+_entity$/.test(key);
+    for (const [key, value] of Object.entries(config)) {
+      if (value === '' && isEntity(key)) config[key] = this._demoEntityId(key);
+    }
+    if (!config.events_entities?.length) {
+      config.events_entities = [
+        'binary_sensor.casa_luna_demo_front_door',
+        'binary_sensor.casa_luna_demo_motion',
+        'automation.casa_luna_demo_evening',
+      ];
+    }
+  }
+
+  _demoEntityId(key) {
+    const slug = `casa_luna_demo_${key}`.replace(/[^a-z0-9_]/g, '_');
+    if (/^sec_cam/.test(key)) return `camera.${slug}`;
+    if (/(door|window|motion|flame|gas_digital|smoke|presence)/.test(key)) return `binary_sensor.${slug}`;
+    if (/^(light|wled)/.test(key)) return `light.${slug}`;
+    if (/^clim_ac/.test(key)) return `climate.${slug}`;
+    if (/scene/.test(key)) return `scene.${slug}`;
+    if (/(work_mode|op_mode|ems_mode)/.test(key)) return `select.${slug}`;
+    if (/(schedule|mode|switch|enable|supply|relay|tuya|automation|adaptive|all_on|all_off)/.test(key)) return `switch.${slug}`;
+    return `sensor.${slug}`;
   }
 
   /* —— BUILD 1: render dirty-check ——
@@ -981,8 +1023,16 @@ class CasaLuna extends HTMLElement {
     const pct = seed % 100;
     let state, attributes = { friendly_name: this._mockLabel(id) };
     if (domain === 'binary_sensor') state = (seed % 4 === 0) ? 'on' : 'off';
-    else if (['switch', 'light', 'input_boolean', 'fan'].includes(domain)) state = (seed % 2 === 0) ? 'on' : 'off';
+    else if (['switch', 'input_boolean', 'fan'].includes(domain)) state = (seed % 2 === 0) ? 'on' : 'off';
+    else if (domain === 'light') {
+      state = (seed % 2 === 0) ? 'on' : 'off';
+      attributes = { ...attributes, brightness: 180, effect: 'Rainbow', effect_list: ['Rainbow', 'Solid', 'Breathe'] };
+    }
     else if (domain === 'climate') state = 'heat';
+    else if (domain === 'select') {
+      state = 'Normal';
+      attributes = { ...attributes, options: ['Normal', 'Eco', 'Backup'] };
+    }
     else if (domain === 'cover') state = 'open';
     else if (domain === 'lock') state = 'locked';
     else if (domain === 'sun') state = 'above_horizon';
@@ -1021,7 +1071,10 @@ class CasaLuna extends HTMLElement {
       const mocked = id && this._mockCache && this._mockCache[id];
       if (!mocked) return realCall(domain, service, data);
       if (service === 'toggle') mocked.state = mocked.state === 'on' ? 'off' : 'on';
-      else if (service === 'turn_on') { mocked.state = 'on'; if (data.brightness_pct != null) mocked.attributes.brightness_pct = data.brightness_pct; }
+      else if (service === 'turn_on') {
+        mocked.state = 'on';
+        if (data.brightness_pct != null) mocked.attributes.brightness = Math.round(data.brightness_pct * 2.55);
+      }
       else if (service === 'turn_off') mocked.state = 'off';
       else if (service === 'set_value' && data.value != null) mocked.state = String(data.value);
       this._update();
@@ -3059,7 +3112,7 @@ class CasaLuna extends HTMLElement {
     return out || '<div class="hint" style="opacity:.6;padding:18px">No climate entities configured. Add them in the editor → Climate View.</div>';
   }
 
-  /* ── ENERGY view: monitoring + GoodWe inverter controls (from config) ── */
+  /* ── ENERGY view: monitoring + AC-system controls (from config) ── */
   _viewEnergy() {
     const c = this.config;
     /* Same inheritance pattern as _viewBattery's bf(): if the Energy View's own en_*
@@ -3074,7 +3127,7 @@ class CasaLuna extends HTMLElement {
         + this._wTile('🏠', 'Load', bf('en_load', 'consump'), 'W', true)
         + this._wTile('🔋', 'Backup', c.en_backup || '', 'W', true)
         + this._wTile('⚙️', 'Mode', bf('en_work_mode', 'inverter_state')))
-      + this._wHead('Inverter Controls')
+      + this._wHead('AC System Controls')
       + this._wGrid(3,
         this._wToggleTile('🔋', 'Backup', c.en_backup_supply || '')
         + this._wToggleTile('🏭', 'Export lim', c.en_export_switch || '')
@@ -3241,7 +3294,7 @@ class CasaLuna extends HTMLElement {
     const c = this.config;
     /* same inheritance pattern as _viewBattery/_viewEnergy */
     const bf = (sysKey, mainKey) => (c[sysKey] && this._stateObj(c[sysKey])) ? c[sysKey] : (c[mainKey] || '');
-    return this._wHead('Inverter & ESP')
+    return this._wHead('Power System & ESP')
       + this._wGrid(4,
         this._wTile('🌡️', 'Inv Temp', bf('sys_inv_temp', 'inv_temp'), '°C')
         + this._wTile('⚙️', 'Mode', bf('sys_work_mode', 'inverter_state'))
@@ -5025,7 +5078,7 @@ class CasaLunaEditor extends HTMLElement {
     shell.innerHTML = style;
 
     const section = (id, icon, title, rows, opts = {}) => {
-      if (this._sectionOpen[id] === undefined) this._sectionOpen[id] = (id === 'general');
+      if (this._sectionOpen[id] === undefined) this._sectionOpen[id] = (id === 'start' || id === 'dc12');
       const open = this._sectionOpen[id];
       const sec = document.createElement('div');
       sec.className = opts.sub ? 'sub' : (opts.wide ? 'section wide' : 'section');
@@ -5287,14 +5340,17 @@ class CasaLunaEditor extends HTMLElement {
     advBanner.appendChild(advHdr);
     rawAppend(advBanner);
 
-    shell.appendChild(section('general', '⚙️', 'General', [
+    shell.appendChild(section('start', '🧭', 'Start Here', [
+      info('Configure in this order: 1) 12V DC System for your solar, supply, battery and power; 2) Main Energy for household/grid values; 3) AC 3-Phase Monitor only if you use phase sensors; 4) Battery Packs for your 3S pack readings. All other sections are optional views and devices.'),
+      info('Open an entity row to choose its Home Assistant entity and set the display name shown on the card. Use Clear to remove a selection.'),
+    ], { wide: true }));
+
+    shell.appendChild(section('general', '⚙️', 'Dashboard Basics', [
       textField('title', 'Title', 'CASA LUNA'),
-      textField('inverter_name', 'Inverter Name', 'e.g. My Inverter'),
       divider(),
       capGroup('Battery Capacity', 'battery_cap_unit', 'battery_full_ah', 'battery_full_wh'),
       divider(),
       numberField('pv_max_power', 'PV Array Max Power', 0, 30000, 100, 'W'),
-      numberField('inverter_max_power', 'Inverter Max Power', 0, 20000, 100, 'W'),
       divider(),
       numberField('lower_section_offset', 'Flow diagram vertical offset', -80, 80, 1, 'SVG units (− = up)'),
       divider(),
@@ -5360,9 +5416,9 @@ class CasaLunaEditor extends HTMLElement {
       eg('dc12_power', 'DC power'),
     ]));
 
-    shell.appendChild(section('phaseflip', '🔄', 'AC Grid Details', [
-      info('One flip tile: front shows grid 3-phase power/volt, back shows inverter L1–L3 power/volt.'),
-      textField('label_phase_title', 'Front title', 'GRID PHASES'),
+    shell.appendChild(section('phaseflip', '🔄', 'AC 3-Phase Monitor', [
+      info('Optional AC monitor: the front shows grid L1–L3 power/voltage, and the back shows your AC source L1–L3 readings.'),
+      textField('label_phase_title', 'Grid side title', 'GRID PHASES'),
       eg('grid_phase_a', 'PHASE L1'),
       eg('grid_phase_a_volt', 'L1 VOLT'),
       eg('grid_phase_b', 'PHASE L2'),
@@ -5370,22 +5426,16 @@ class CasaLunaEditor extends HTMLElement {
       eg('grid_phase_c', 'PHASE L3'),
       eg('grid_phase_c_volt', 'L3 VOLT'),
       divider(),
-      textField('label_inv_title', 'Back title', 'INVERTER'),
-      eg('inv_l1_power', 'Inverter L1 Power'),
-      eg('inv_l2_power', 'Inverter L2 Power'),
-      eg('inv_l3_power', 'Inverter L3 Power'),
-      eg('inv_l1_volt', 'Inverter L1 Volt'),
-      eg('inv_l2_volt', 'Inverter L2 Volt'),
-      eg('inv_l3_volt', 'Inverter L3 Volt'),
+      textField('label_inv_title', 'AC source title', 'AC SOURCE'),
+      eg('inv_l1_power', 'AC Source L1 Power'),
+      eg('inv_l2_power', 'AC Source L2 Power'),
+      eg('inv_l3_power', 'AC Source L3 Power'),
+      eg('inv_l1_volt', 'AC Source L1 Volt'),
+      eg('inv_l2_volt', 'AC Source L2 Volt'),
+      eg('inv_l3_volt', 'AC Source L3 Volt'),
       divider(),
-      info('Optional — for hybrid setups where other inverters also feed the house directly. If set, INV LOAD % uses this inverter\'s own output instead of total house consumption.'),
-      eg('inverter_output_power', 'Inverter Output Power'),
-    ]));
-
-    shell.appendChild(section('inverter', '🔄', 'Inverter Status', [
-      egL('inverter_state', 'INV STATE'),
-      eg('inv_temp', 'INVERTER TEMP'),
-      eg('inverter_error', 'INVERTER ERROR'),
+      info('Optional: choose the AC source output power when it differs from total household consumption.'),
+      eg('inverter_output_power', 'AC Source Output Power'),
     ]));
 
     shell.appendChild(section('battery', '🔋', 'Battery', [
@@ -5523,7 +5573,7 @@ class CasaLunaEditor extends HTMLElement {
     ]));
 
     shell.appendChild(section('nav_energy', '⚡', 'Energy View', [
-      info('Monitoring rows + GoodWe inverter controls. Leave blank to show a dimmed slot.'),
+      info('Monitoring rows and AC-system controls. Leave blank to show a dimmed slot.'),
       picker('en_pv1', 'PV1 Power', true), picker('en_pv2', 'PV2 Power', true),
       picker('en_grid_power', 'Grid Power', true), picker('en_load', 'House Load', true),
       picker('en_backup', 'Backup Load', true), picker('en_work_mode', 'Work Mode', true),
@@ -5719,7 +5769,7 @@ class CasaLunaEditor extends HTMLElement {
     ]));
 
     shell.appendChild(section('nav_system', '🖥️', 'System View', [
-      picker('sys_inv_temp', 'Inverter Temp', true), picker('sys_work_mode', 'Work Mode', true),
+      picker('sys_inv_temp', 'AC System Temp', true), picker('sys_work_mode', 'AC System Mode', true),
       picker('sys_c3_status', 'C3 Status', true), picker('sys_board_temp', 'Board Temp', true),
       picker('sys_gas', 'Gas Level', true), picker('sys_lux', 'Light Level', true),
       picker('sys_wifi', 'WiFi Signal', true), picker('sys_bluetooth', 'Bluetooth', true), picker('sys_grid_meter', 'Grid Meter', true),

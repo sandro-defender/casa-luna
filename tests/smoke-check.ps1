@@ -18,7 +18,11 @@ $required = @(
   'nav_custom1_enabled',
   'nav_custom2_enabled',
   'merged._show_battery2 = false',
-  'merged._show_pv_extra = false'
+  'merged._show_pv_extra = false',
+  '_populateDemoEntities',
+  '_demoEntityId',
+  'AC 3-Phase Monitor',
+  'Start Here'
 )
 
 foreach ($marker in $required) {

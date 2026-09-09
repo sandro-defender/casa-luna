@@ -97,6 +97,12 @@ The former inverter area keeps its original two-card visual layout, repurposed a
 
 This card is separate from your 220V/AC monitoring. The editor lets you rename the card, each DC sensor label, and the top PWR indicator; set its maximum power for the indicator scale. Set `dc12_enabled: false` to hide it. The pre-change module is preserved as `dist/casa-luna.backup.js`.
 
+## Editor layout and demo mode
+
+The editor begins with **Start Here** and keeps the most common sections clear: **12V DC System**, **Main Energy**, **AC 3-Phase Monitor**, and **Battery**. The old standalone inverter-status configuration has been removed. The AC 3-Phase Monitor remains available for your grid and AC-source L1/L2/L3 sensors.
+
+Demo Mode now creates safe, local mock entities for all empty card slots, including navigation views, lights, security, controls, battery packs, and 12V readings. Existing configured entities continue to show their real state, and demo controls never send commands to real devices.
+
 ## Battery packs
 
 Casa Luna supports one battery system with up to three pack-voltage sensors:

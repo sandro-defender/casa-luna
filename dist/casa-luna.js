@@ -1057,7 +1057,9 @@ class CasaLuna extends HTMLElement {
     return obj;
   }
   _mockLabel(id) {
-    return id.split('.')[1].replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
+    const parts = String(id || '').split('.');
+    const objectId = parts.length > 1 ? parts.slice(1).join('.') : parts[0];
+    return objectId.replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase()) || 'Demo entity';
   }
 
   /* ── demo-mode: route service calls (toggle/turn_on/turn_off/set_value) for

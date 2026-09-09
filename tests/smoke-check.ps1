@@ -21,6 +21,7 @@ $required = @(
   'merged._show_pv_extra = false',
   '_populateDemoEntities',
   '_demoEntityId',
+  "const objectId = parts.length > 1",
   'AC 3-Phase Monitor',
   'Start Here',
   'dc12_max_current',

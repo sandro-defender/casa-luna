@@ -1876,7 +1876,7 @@ class CasaLuna extends HTMLElement {
       </div>
       <div style="position:absolute;right:14px;bottom:9px;font-size:12px;font-weight:700;color:#d8eeff"><span style="font-size:9px;color:#607892;letter-spacing:.06em">${esc(c.title_dc12_power || 'POWER')}</span> <span id="dc12Power">--</span></div>
     </div>
-    <div class="box" style="left:${irX}px;top:${IR[1]}px;width:${irW}px;height:${IR[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35))">
+    <div id="dc12Gauge" class="box" style="left:${irX}px;top:${IR[1]}px;width:${irW}px;height:${IR[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35));${c.dc12_enabled === false ? 'display:none;' : ''}">
       <svg style="position:absolute;left:${DC[0]-irX-10}px;top:${(IR[3]-115)/2}px;width:115px;height:115px" viewBox="0 0 115 115">
         ${(() => {
           const cx = 57.5, cy = 57.5, r = 44, sw = 6.1;
@@ -5484,7 +5484,7 @@ class CasaLunaEditor extends HTMLElement {
       info('Enable or disable cards. Disabled cards are hidden from the dashboard.'),
       switchRow('_show_bars', '📊 PV / PWR bars', 'Both bottom capsule bars', true),
       switchRow('_show_phase', '🔄 AC 3-Phase monitor', 'Show or hide the original Grid Phases / AC Source flip card. This does not affect the 12V card.', true),
-      switchRow('dc12_enabled', '🔋 12V DC system tile', 'Show the separate 12V system in the right inverter-style area.', true),
+      switchRow('dc12_enabled', '🔋 12V current-gauge tile', 'Show or hide the 12V current gauge on the right. The 12V readings remain on the back of Grid Phases.', true),
       switchRow('_show_battstats', '🔋 Battery value tile', 'Show battery stats (flip → 3 pack voltages)', true),
       switchRow('_show_pvtile', '☀️ PV PWR/VOLT tile', 'Show the small PV power/voltage tile next to the battery', true),
       switchRow('_show_ev', '🚗 EV / car charger tile', 'Show the EV charger tile', false),

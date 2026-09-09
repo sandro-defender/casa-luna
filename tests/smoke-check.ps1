@@ -28,6 +28,7 @@ $required = @(
   'light1_card_type',
   'Slider Light Cards',
   'id="dc12System" style="display:none"',
+  'id="dc12Gauge"',
   'const showPhaseCard = c._show_phase !== false',
   'id="phaseFlip"',
   'Do not render a duplicate here',

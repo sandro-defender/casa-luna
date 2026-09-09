@@ -65,6 +65,10 @@ consump: sensor.house_power
 weather_entity: weather.home
 wled_entity: light.wled_strip
 wled_name: Living Room LEDs
+dc12_solar_voltage: sensor.dc_solar_voltage
+dc12_supply_voltage: sensor.dc_power_supply_voltage
+dc12_battery_voltage: sensor.dc_battery_voltage
+dc12_current: sensor.dc_current
 ```
 
 All entity fields are optional. Empty fields render as `--` or hide the related optional tile.
@@ -78,6 +82,18 @@ Set `wled_entity` to your WLED `light.*` entity in the **Lighting View** editor.
 The editor’s **Left Navigation** section lets you show or hide each built-in left-side card. It also includes **Custom Card 1** and **Custom Card 2**. Enable either card, set its title, subtitle, and icon, then add a comma-separated list of Home Assistant entity IDs. The custom card opens a live list of those entities.
 
 Available custom icon names: `gear`, `home`, `bolt`, `plug`, `batt`, `therm`, `shield`, `bulb`, `sun`, `pump`, `irrig`, and `warn`.
+
+## Separate 12V DC system
+
+The former inverter/phase tile is now a dedicated **12V DC System** card. Configure it in the editor with your separate DC sensors:
+
+- `dc12_solar_voltage`
+- `dc12_supply_voltage`
+- `dc12_battery_voltage`
+- `dc12_current`
+- `dc12_power` (optional)
+
+This card is separate from your 220V/AC monitoring. Set `dc12_enabled: false` to hide it. The pre-change module is preserved as `dist/casa-luna.backup.js`.
 
 ## Battery packs
 

@@ -607,9 +607,6 @@ class CasaLuna extends HTMLElement {
       total_import: '', total_export: '',
       inverter_state: '',
       inverter_error: '',
-      dc12_enabled: true, dc12_name: '12V DC SYSTEM',
-      dc12_solar_voltage: '', dc12_supply_voltage: '', dc12_battery_voltage: '',
-      dc12_current: '', dc12_power: '',
       today_batt_chg: '',
       today_load: '',
       battery_soc: '',
@@ -1725,15 +1722,27 @@ class CasaLuna extends HTMLElement {
     const irShift = IR[0] - irX;
     const irW = IR[2] + irShift;
     const lower = `
-    <div class="box" id="dc12System" style="left:${IB[0]}px;top:${IB[1]}px;width:${IB[2]}px;height:${IB[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35));${c.dc12_enabled === false ? "display:none" : ""}">
-      <div class="val" style="position:absolute;left:14px;top:10px;font-size:14px;color:#cce4ff">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
-      <div style="position:absolute;left:14px;right:14px;top:38px;display:grid;grid-template-columns:1fr 1fr;gap:8px 12px">
-        <div><div style="font-size:9px;color:#ffd24a;letter-spacing:.06em">SOLAR</div><div class="val" id="dc12SolarV" style="font-size:18px;color:#ffd24a">--</div></div>
-        <div><div style="font-size:9px;color:#7fd4ff;letter-spacing:.06em">SUPPLY</div><div class="val" id="dc12SupplyV" style="font-size:18px;color:#7fd4ff">--</div></div>
-        <div><div style="font-size:9px;color:#7ce05a;letter-spacing:.06em">BATTERY</div><div class="val" id="dc12BatteryV" style="font-size:18px;color:#7ce05a">--</div></div>
-        <div><div style="font-size:9px;color:#a8cae6;letter-spacing:.06em">CURRENT</div><div class="val" id="dc12Current" style="font-size:18px;color:#eaf4ff">--</div></div>
+    <div class="box flipcard" id="phaseFlip" style="left:${IB[0]}px;top:${IB[1]}px;width:${IB[2]}px;height:${IB[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35));perspective:800px;${c._show_phase ? "" : "display:none"}">
+      <div class="flipinner" id="phaseFlipInner" style="position:absolute;inset:0;transition:transform .5s;transform-style:preserve-3d">
+        <!-- FRONT: grid phases -->
+        <div class="flipface" style="position:absolute;inset:0;backface-visibility:hidden;padding:0">
+          <div class="val" style="position:absolute;left:14px;top:10px;font-size:15px" id="phaseTitle">${esc(c.label_phase_title || 'GRID PHASES')}</div>
+          <div class="flipbtn" id="phaseFlipBtn" style="right:10px;top:10px">↻</div>
+          <div style="position:absolute;left:14px;top:42px;font-size:10px;color:#a8cae6;letter-spacing:.04em">PWR<br><span style="font-size:8px;opacity:.7">kW</span></div>
+          <div id="phaseRowP" style="position:absolute;left:54px;right:12px;top:40px;display:flex;gap:6px;justify-content:space-between;font-size:15px;font-weight:700;color:#eaf4ff"></div>
+          <div style="position:absolute;left:14px;top:74px;font-size:10px;color:#a8cae6;letter-spacing:.04em">VOLT<br><span style="font-size:8px;opacity:.7">V</span></div>
+          <div id="phaseRowV" style="position:absolute;left:54px;right:12px;top:72px;display:flex;gap:6px;justify-content:space-between;font-size:15px;font-weight:700;color:#a8cae6"></div>
+        </div>
+        <!-- BACK: inverter pwr/volt as 3-phase -->
+        <div class="flipface" style="position:absolute;inset:0;backface-visibility:hidden;transform:rotateY(180deg);padding:0">
+          <div class="val" style="position:absolute;left:14px;top:10px;font-size:15px">${esc(c.label_inv_title || 'INVERTER')}</div>
+          <div class="flipbtn" id="phaseFlipBackBtn" style="right:10px;top:10px">↻</div>
+          <div style="position:absolute;left:14px;top:42px;font-size:10px;color:#a8cae6;letter-spacing:.04em">PWR<br><span style="font-size:8px;opacity:.7">kW</span></div>
+          <div id="invRowP" style="position:absolute;left:54px;right:12px;top:40px;display:flex;gap:6px;justify-content:space-between;font-size:15px;font-weight:700;color:#eaf4ff"></div>
+          <div style="position:absolute;left:14px;top:74px;font-size:10px;color:#a8cae6;letter-spacing:.04em">VOLT<br><span style="font-size:8px;opacity:.7">V</span></div>
+          <div id="invRowV" style="position:absolute;left:54px;right:12px;top:72px;display:flex;gap:6px;justify-content:space-between;font-size:15px;font-weight:700;color:#a8cae6"></div>
+        </div>
       </div>
-      <div id="dc12Power" style="position:absolute;right:14px;bottom:9px;font-size:12px;font-weight:700;color:#d8eeff">--</div>
     </div>
     <div class="box" style="left:${irX}px;top:${IR[1]}px;width:${irW}px;height:${IR[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35))">
       ${!c._show_phase ? `
@@ -4079,13 +4088,6 @@ class CasaLuna extends HTMLElement {
       errEl.textContent = clean ? '\u2713 No Errors' : `\u26a0 ${this._cap(invErrSt)}`;
       errEl.style.color = clean ? '#46e05a' : '#ff5040';
     }
-    /* Separate 12V DC system: intentionally independent from the AC inverter data. */
-    const dcVoltage = id => id ? `${this._decEnt(id)} V` : '--';
-    this._setTxt('#dc12SolarV', dcVoltage(c.dc12_solar_voltage));
-    this._setTxt('#dc12SupplyV', dcVoltage(c.dc12_supply_voltage));
-    this._setTxt('#dc12BatteryV', dcVoltage(c.dc12_battery_voltage));
-    this._setTxt('#dc12Current', c.dc12_current ? `${this._decEnt(c.dc12_current)} A` : '--');
-    this._setTxt('#dc12Power', c.dc12_power ? this._powerEnt(c.dc12_power) : '--');
     /* phase flip tile: front = grid phase pwr/volt, back = inverter pwr/volt (3 values each, no L1/L2 prefixes) */
     const phaseVal = (id) => { const v = this._num(id, NaN); return Number.isFinite(v) ? v.toFixed(1) : '--'; };
     const phaseKw = (id) => { const v = this._watts(id, NaN); return Number.isFinite(v) ? `${this._dec(v / 1000)}` : '--'; };
@@ -5291,7 +5293,7 @@ class CasaLunaEditor extends HTMLElement {
     shell.appendChild(section('toggles', '🎚️', 'Toggles', [
       info('Enable or disable cards. Disabled cards are hidden from the dashboard.'),
       switchRow('_show_bars', '📊 PV / PWR bars', 'Both bottom capsule bars', true),
-      switchRow('dc12_enabled', '🔋 12V DC system tile', 'Show the separate solar / supply / battery DC tile', true),
+      switchRow('_show_phase', '🔀 Phase / Inverter tile', 'Show the 3-phase + inverter tile (with flip)', true),
       switchRow('_show_battstats', '🔋 Battery value tile', 'Show battery stats (flip → 3 pack voltages)', true),
       switchRow('_show_pvtile', '☀️ PV PWR/VOLT tile', 'Show the small PV power/voltage tile next to the battery', true),
       switchRow('_show_ev', '🚗 EV / car charger tile', 'Show the EV charger tile', false),
@@ -5335,17 +5337,7 @@ class CasaLunaEditor extends HTMLElement {
       textField('label_today_consumption', "Today's Consumption — caption", "TODAY'S CONSUMPTION"),
     ]));
 
-    shell.appendChild(section('dc12', '🔋', '12V DC System', [
-      info('This is separate from the 220V/AC system. Set the live sensors for your 12V solar panel, power supply, and battery.'),
-      textField('dc12_name', 'Tile title', '12V DC SYSTEM'),
-      eg('dc12_solar_voltage', 'Solar voltage'),
-      eg('dc12_supply_voltage', '12V power supply voltage'),
-      eg('dc12_battery_voltage', '12V battery voltage'),
-      eg('dc12_current', 'DC current'),
-      eg('dc12_power', 'DC power'),
-    ]));
-
-    shell.appendChild(section('phaseflip', '🔄', 'AC Grid Details', [
+    shell.appendChild(section('phaseflip', '🔄', 'Phase / Inverter Tile', [
       info('One flip tile: front shows grid 3-phase power/volt, back shows inverter L1–L3 power/volt.'),
       textField('label_phase_title', 'Front title', 'GRID PHASES'),
       eg('grid_phase_a', 'PHASE L1'),

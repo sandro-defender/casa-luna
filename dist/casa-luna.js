@@ -469,7 +469,7 @@ const VIEW_TEXT_DEFAULTS = [
   'WiFi', 'Grid kWh', 'CPU', 'Memory', 'Disk', 'Uptime', 'Front — Cam 1', 'Gate — Cam 2',
   'Motion alert when away', 'Press', 'Send', 'On', 'Off', 'ON', 'OFF', 'Open', 'Closed',
   'Occupied', 'Clear', 'Motion', 'Fan Speed', 'Airflow', 'Eco mode', 'Now:', 'TARGET',
-  'Timer', 'LIVE', '(stream not set)', 'No climate entities found.', 'No scenes found.',
+  'Timer', 'LIVE', '(stream not set)', 'BRIGHTNESS', 'Effect:', 'No climate entities found.', 'No scenes found.',
   'No smart plugs configured. Add them in the editor → Smart Plugs View.',
   'No lighting entities configured. Add them in the editor → Lighting View.'
 ];
@@ -2815,8 +2815,8 @@ class CasaLuna extends HTMLElement {
     </div>`;
   }
 
-  /* Dedicated WLED card: the WLED entity is separate from ordinary room lights and
-     keeps its brightness slider available in the Lighting popup. */
+  /* Dedicated WLED control: a compact slider-button-card-style row. The toggle and
+     brightness slider are separate touch targets so dragging never flips the light. */
   _wWled(label, entId) {
     label = this._displayLabel(entId, this._t(label));
     const has = !!entId;
@@ -2824,19 +2824,19 @@ class CasaLuna extends HTMLElement {
     const brightness = has ? this._attr(entId, 'brightness') : null;
     const pct = brightness != null ? Math.round((+brightness / 255) * 100) : 0;
     const effect = has ? this._attr(entId, 'effect') : null;
-    return `<div class="pw" style="flex-direction:column;align-items:stretch;gap:12px;padding:14px">
-      <div class="${on ? 'on' : ''}" ${has ? `data-toggle="${esc(entId)}"` : ''}
-        style="min-height:48px;display:flex;align-items:center;gap:12px;padding:0 12px;border-radius:12px;cursor:${has ? 'pointer' : 'default'};background:${on ? 'linear-gradient(135deg,rgba(130,70,255,.36),rgba(0,210,255,.18))' : 'rgba(255,255,255,.04)'};border:1px solid ${on ? 'rgba(167,124,255,.8)' : 'rgba(130,180,220,.22)'};opacity:${has ? '1' : '.4'}">
-        <span style="font-size:22px">◉</span><span style="flex:1;font-size:14px;font-weight:800;color:#eaf4ff">${esc(label || 'WLED')}</span>
-        <span style="font-size:11px;font-weight:800;color:${on ? '#d6b4ff' : '#7fa3c4'}">${on ? 'ON' : 'OFF'}</span>
+    const state = on ? (pct ? `${pct}%` : this._t('ON')) : this._t('OFF');
+    return `<div class="pw" style="gap:12px;padding:10px 12px;min-height:68px;background:${on ? 'linear-gradient(100deg,rgba(114,65,255,.30),rgba(0,190,255,.12))' : 'rgba(255,255,255,.04)'};border-color:${on ? 'rgba(142,120,255,.7)' : 'rgba(120,180,255,.18)'};opacity:${has ? '1' : '.45'}">
+      <button type="button" ${has ? `data-toggle="${esc(entId)}"` : 'disabled'} aria-label="Toggle ${esc(label || 'WLED')}" aria-pressed="${on}"
+        style="width:48px;height:48px;flex:0 0 48px;border-radius:50%;border:1px solid ${on ? 'rgba(207,190,255,.95)' : 'rgba(150,185,220,.35)'};background:${on ? 'rgba(165,118,255,.30)' : 'rgba(255,255,255,.05)'};color:${on ? '#f0eaff' : '#9db8d8'};font-size:22px;cursor:${has ? 'pointer' : 'default'}">◉</button>
+      <div style="min-width:0;flex:1;display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;align-items:baseline;gap:8px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:14px;font-weight:800;color:#f3f7ff">${esc(label || 'WLED')}</span><span data-brightval="${esc(entId)}" style="font-size:12px;font-weight:800;color:${on ? '#d8caff' : '#9db8d8'}">${esc(state)}</span></div>
+        <div ${has ? `data-bright="${esc(entId)}"` : ''} aria-label="${esc(this._t('BRIGHTNESS'))}"
+          style="height:44px;position:relative;cursor:${has ? 'pointer' : 'default'};${has ? '' : 'pointer-events:none'}">
+          <div style="position:absolute;left:0;right:0;top:18px;height:8px;border-radius:6px;background:rgba(255,255,255,.14)"></div>
+          <div class="fill" style="width:${pct}%;top:18px;bottom:18px;background:linear-gradient(90deg,#6e4cff,#b26cff,#37d8ff)"></div><div class="thumb" style="left:${pct}%"></div>
+        </div>
+        ${effect ? `<span style="font-size:10px;color:#b8c9df;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(this._t('Effect:'))} ${esc(effect)}</span>` : ''}
       </div>
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:12px;color:#bda8ff">BRIGHTNESS</span>
-        <div class="pw-sld" ${has ? `data-bright="${esc(entId)}"` : ''} style="flex:1;${has ? '' : 'opacity:.4'}">
-          <div class="fill" style="width:${pct}%"></div><div class="thumb" style="left:${pct}%"></div></div>
-        <span class="pw-sld-val" data-brightval="${esc(entId)}">${on ? pct + '%' : 'off'}</span>
-      </div>
-      ${effect ? `<div style="font-size:11px;color:#9db8d8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Effect: ${esc(effect)}</div>` : ''}
     </div>`;
   }
 

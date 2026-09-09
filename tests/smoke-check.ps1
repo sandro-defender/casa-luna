@@ -24,6 +24,7 @@ $required = @(
   "const objectId = parts.length > 1",
   'DEFAULT_TEXT_OVERRIDES',
   'VIEW_TEXT_DEFAULTS',
+  'slider-button-card-style row',
   'text_overrides',
   'AC 3-Phase Monitor',
   'Start Here',

@@ -99,7 +99,7 @@ The full starter map is included automatically in a new card’s defaults and is
 
 ## WLED
 
-Set `wled_entity` to your WLED `light.*` entity in the **Lighting View** editor. It appears in its own WLED section in the Lighting popup, with a direct on/off button and a brightness slider. `wled_name` changes the displayed name.
+Set `wled_entity` to your WLED `light.*` entity in the **Lighting View** editor. It appears in its own compact slider-button-card-style row: tap the round icon to toggle it, or tap/drag the gradient slider to set brightness. `wled_name` changes the displayed name.
 
 ## Left navigation and custom cards
 

@@ -101,6 +101,8 @@ The full starter map is included automatically in a new card’s defaults and is
 
 Set `wled_entity` to your WLED `light.*` entity in the **Lighting View** editor. It uses your installed `custom:slider-button-card` with the same compact gradient-slider configuration shown below. `wled_name` changes the displayed name.
 
+For multiple WLEDs, select any Light or Extra Light entity in the Lighting View and set its **card type** to **Slider button card (WLED)**. You can use this for two, three, or more WLED entities; normal lights can remain Casa Luna light tiles.
+
 ## Left navigation and custom cards
 
 The editor’s **Left Navigation** section lets you show or hide each built-in left-side card. It also includes **Custom Card 1** and **Custom Card 2**. Enable either card, set its title, subtitle, and icon, then add a comma-separated list of Home Assistant entity IDs. The custom card opens a live list of those entities.

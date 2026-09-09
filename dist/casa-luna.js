@@ -456,7 +456,7 @@ const VIEW_TEXT_DEFAULTS = [
   'Smart Plugs', 'Pack', 'Temps', 'Pack Voltages', 'Charge Controls',
   'Scenes (auto)', 'Automations (auto)', 'Switches (auto)', 'Helpers (auto)',
   'Scenes', 'Relays', 'More', 'Automations', 'Modes', 'Voice (Alexa)', 'Tuya Timers',
-  'Lights (auto)', 'All Lights', 'Lights', 'WLED', 'Power System & ESP', 'Server',
+  'Lights (auto)', 'All Lights', 'Lights', 'WLED', 'Slider Light Cards', 'Power System & ESP', 'Server',
   'Solar', 'Grid', 'Load', 'Backup', 'Mode', 'Export lim', 'DOD hold',
   'EMS mode', 'Operation mode', 'Export limit', 'SoC protection', 'DoD (on-grid)',
   'DoD (off-grid)', 'Eco mode power', 'EMS power', 'Grid switch', 'Sync time',
@@ -738,8 +738,11 @@ class CasaLuna extends HTMLElement {
       sec_extra_1_entity: '', sec_extra_1_name: '', sec_extra_2_entity: '', sec_extra_2_name: '', sec_extra_3_entity: '', sec_extra_3_name: '',
       sec_extra_4_entity: '', sec_extra_4_name: '', sec_extra_5_entity: '', sec_extra_5_name: '', sec_extra_6_entity: '', sec_extra_6_name: '',
       light1_name: '', light2_name: '', light3_name: '', light_zigbee_name: '',
+      light1_card_type: 'standard', light2_card_type: 'standard', light3_card_type: 'standard', light_zigbee_card_type: 'standard',
       light_extra_1_entity: '', light_extra_1_name: '', light_extra_2_entity: '', light_extra_2_name: '', light_extra_3_entity: '', light_extra_3_name: '',
       light_extra_4_entity: '', light_extra_4_name: '', light_extra_5_entity: '', light_extra_5_name: '', light_extra_6_entity: '', light_extra_6_name: '',
+      light_extra_1_card_type: 'standard', light_extra_2_card_type: 'standard', light_extra_3_card_type: 'standard',
+      light_extra_4_card_type: 'standard', light_extra_5_card_type: 'standard', light_extra_6_card_type: 'standard',
       auto_relay1_name: '', auto_relay2_name: '', auto_relay3_name: '', auto_relay4_name: '',
       auto_extra_1_entity: '', auto_extra_1_name: '', auto_extra_2_entity: '', auto_extra_2_name: '', auto_extra_3_entity: '', auto_extra_3_name: '',
       auto_extra_4_entity: '', auto_extra_4_name: '', auto_extra_5_entity: '', auto_extra_5_name: '', auto_extra_6_entity: '', auto_extra_6_name: '',
@@ -3349,23 +3352,28 @@ class CasaLuna extends HTMLElement {
           + this._wToggleTile('🔄', 'Adaptive', c.light_adaptive || ''));
     }
     const grp = (head, body) => body ? this._wHead(head) + body : '';
-    const lights = [
-      c.light1       && this._wLight(c.light1_name       || this._name(c.light1), c.light1),
-      c.light2       && this._wLight(c.light2_name       || this._name(c.light2), c.light2),
-      c.light3       && this._wLight(c.light3_name       || this._name(c.light3), c.light3),
-      c.light_zigbee && this._wLight(c.light_zigbee_name || this._name(c.light_zigbee), c.light_zigbee),
-      ...[1, 2, 3, 4, 5, 6].map(n => {
-        const id = c[`light_extra_${n}_entity`];
-        return id ? this._wLight(c[`light_extra_${n}_name`] || this._name(id), id) : '';
-      }),
-    ].filter(Boolean).join('');
+    const regularLights = [], sliderLights = [];
+    const addLight = (id, name, cardType) => {
+      if (!id) return;
+      const card = cardType === 'slider_button'
+        ? this._wWled(name || this._name(id), id)
+        : this._wLight(name || this._name(id), id);
+      (cardType === 'slider_button' ? sliderLights : regularLights).push(card);
+    };
+    addLight(c.light1, c.light1_name, c.light1_card_type);
+    addLight(c.light2, c.light2_name, c.light2_card_type);
+    addLight(c.light3, c.light3_name, c.light3_card_type);
+    addLight(c.light_zigbee, c.light_zigbee_name, c.light_zigbee_card_type);
+    [1, 2, 3, 4, 5, 6].forEach(n => addLight(c[`light_extra_${n}_entity`], c[`light_extra_${n}_name`], c[`light_extra_${n}_card_type`]));
     const all = [
       c.light_all_on   && this._wButtonTile('🔆', 'All On', c.light_all_on, 'On'),
       c.light_all_off  && this._wButtonTile('🌑', 'All Off', c.light_all_off, 'Off'),
       c.light_adaptive && this._wToggleTile('🔄', 'Adaptive', c.light_adaptive),
     ].filter(Boolean).join('');
-    const wled = c.wled_entity ? this._wWled(c.wled_name || 'WLED', c.wled_entity) : '';
-    const out = grp('WLED', wled) + grp('Lights', lights ? this._wGrid(3, lights) : '') + grp('All Lights', all ? this._wGrid(3, all) : '');
+    const legacyWled = c.wled_entity ? this._wWled(c.wled_name || 'WLED', c.wled_entity) : '';
+    const out = grp('WLED', legacyWled) + grp('Slider Light Cards', sliderLights.join(''))
+      + grp('Lights', regularLights.length ? this._wGrid(3, regularLights.join('')) : '')
+      + grp('All Lights', all ? this._wGrid(3, all) : '');
     return out || '<div class="hint" style="opacity:.6;padding:18px">No lighting entities configured. Add them in the editor → Lighting View.</div>';
   }
 
@@ -5213,6 +5221,17 @@ class CasaLunaEditor extends HTMLElement {
       return wrap;
     };
 
+    const selectField = (key, label, options) => {
+      const wrap = document.createElement('div'); wrap.className = 'fld';
+      const lbl = document.createElement('label'); lbl.textContent = label;
+      const sel = document.createElement('select');
+      sel.style.cssText = 'width:100%;height:36px;padding:0 8px;background:var(--card-background-color,#1d2733);color:var(--primary-text-color,#fff);border:1px solid rgba(120,180,255,.28);border-radius:7px';
+      options.forEach(([value, text]) => { const option = document.createElement('option'); option.value = value; option.textContent = text; option.selected = (cfg[key] || options[0][0]) === value; sel.appendChild(option); });
+      sel.addEventListener('change', e => this._set(key, e.target.value));
+      wrap.appendChild(lbl); wrap.appendChild(sel);
+      return wrap;
+    };
+
     const numberField = (key, label, min, max, step, unit = '') => {
       const wrap = document.createElement('div'); wrap.className = 'fld';
       const lbl = document.createElement('label'); lbl.textContent = unit ? `${label} (${unit})` : label;
@@ -5824,11 +5843,11 @@ class CasaLunaEditor extends HTMLElement {
 
     shell.appendChild(section('nav_lighting', '💡', 'Lighting View', [
       switchRow('auto_discover_lighting', 'Auto-discover', 'Show all light.* entities automatically (each with brightness).'),
-      info('Pick + name each. Empty slots are hidden.'),
-      picker('light1', 'Light 1 (Living Room)', true), textField('light1_name', 'Light 1 — name', 'Living Room'),
-      picker('light2', 'Light 2 (Bedroom)', true), textField('light2_name', 'Light 2 — name', 'Bedroom'),
-      picker('light3', 'Light 3 (Kitchen)', true), textField('light3_name', 'Light 3 — name', 'Kitchen'),
-      picker('light_zigbee', 'Zigbee Light', true), textField('light_zigbee_name', 'Zigbee Light — name', 'Zigbee Light'),
+      info('Pick a light, name it, then choose its card. Choose Slider button card for every WLED you want to show.'),
+      picker('light1', 'Light 1 (Living Room)', true), textField('light1_name', 'Light 1 — name', 'Living Room'), selectField('light1_card_type', 'Light 1 card type', [['standard', 'Casa Luna light tile'], ['slider_button', 'Slider button card (WLED)']]),
+      picker('light2', 'Light 2 (Bedroom)', true), textField('light2_name', 'Light 2 — name', 'Bedroom'), selectField('light2_card_type', 'Light 2 card type', [['standard', 'Casa Luna light tile'], ['slider_button', 'Slider button card (WLED)']]),
+      picker('light3', 'Light 3 (Kitchen)', true), textField('light3_name', 'Light 3 — name', 'Kitchen'), selectField('light3_card_type', 'Light 3 card type', [['standard', 'Casa Luna light tile'], ['slider_button', 'Slider button card (WLED)']]),
+      picker('light_zigbee', 'Zigbee Light', true), textField('light_zigbee_name', 'Zigbee Light — name', 'Zigbee Light'), selectField('light_zigbee_card_type', 'Zigbee Light card type', [['standard', 'Casa Luna light tile'], ['slider_button', 'Slider button card (WLED)']]),
       divider(),
       info('WLED uses its own card with a brightness slider in the Lighting popup.'),
       picker('wled_entity', 'WLED light', true), textField('wled_name', 'WLED — name', 'WLED'),
@@ -5837,13 +5856,8 @@ class CasaLunaEditor extends HTMLElement {
       picker('light_all_off', 'All Off (script)', true),
       picker('light_adaptive', 'Adaptive lighting (switch)', true),
       divider(),
-      info('Extra lights. Pick + name each; leave empty to skip.'),
-      picker('light_extra_1_entity', 'Extra 1', true), textField('light_extra_1_name', 'Extra 1 — name'),
-      picker('light_extra_2_entity', 'Extra 2', true), textField('light_extra_2_name', 'Extra 2 — name'),
-      picker('light_extra_3_entity', 'Extra 3', true), textField('light_extra_3_name', 'Extra 3 — name'),
-      picker('light_extra_4_entity', 'Extra 4', true), textField('light_extra_4_name', 'Extra 4 — name'),
-      picker('light_extra_5_entity', 'Extra 5', true), textField('light_extra_5_name', 'Extra 5 — name'),
-      picker('light_extra_6_entity', 'Extra 6', true), textField('light_extra_6_name', 'Extra 6 — name'),
+      info('Extra lights. Set any of these to Slider button card for more WLEDs.'),
+      ...[1, 2, 3, 4, 5, 6].flatMap(n => [picker(`light_extra_${n}_entity`, `Extra ${n}`, true), textField(`light_extra_${n}_name`, `Extra ${n} — name`), selectField(`light_extra_${n}_card_type`, `Extra ${n} card type`, [['standard', 'Casa Luna light tile'], ['slider_button', 'Slider button card (WLED)']])]),
     ], { wide: true }));
 
     shell.appendChild(section('recent_events', '📋', 'Recent Events', [

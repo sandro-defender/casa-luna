@@ -5184,7 +5184,16 @@ class CasaLunaEditor extends HTMLElement {
         const sel = document.createElement('ha-selector');
         sel.hass = this._hass; sel.selector = { entity: {} }; sel.value = curId;
         sel.addEventListener('value-changed', e => { e.stopPropagation(); this._set(entityKey, e.detail.value || ''); });
-        body.appendChild(pl); body.appendChild(sel);
+        const pickerRow = document.createElement('div');
+        pickerRow.style.cssText = 'display:flex;align-items:center;gap:8px';
+        pickerRow.appendChild(sel);
+        const clear = document.createElement('button');
+        clear.type = 'button'; clear.textContent = 'Clear';
+        clear.disabled = !curId;
+        clear.style.cssText = 'flex:0 0 auto;padding:8px 10px;border:1px solid var(--divider-color,rgba(0,0,0,.25));border-radius:7px;background:transparent;color:var(--primary-text-color);cursor:pointer';
+        clear.addEventListener('click', e => { e.stopPropagation(); this._set(entityKey, ''); this._render(); });
+        pickerRow.appendChild(clear);
+        body.appendChild(pl); body.appendChild(pickerRow);
 
         g.appendChild(body);
       }

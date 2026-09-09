@@ -95,7 +95,7 @@ text_overrides:
   "DC CURRENT": "DC CURRENT"
 ```
 
-The full starter map is included automatically in a new card’s defaults and is written to the WallPanel configuration below. Keep the left-hand text exactly as shown; replace only the value on the right.
+The full starter map is included automatically in a new card’s defaults and is written to the WallPanel configuration. It covers dashboard labels, section headings, control captions, buttons, and the main-card text. Keep the left-hand text exactly as shown; replace only the value on the right. You can also add a missing visible caption as a new key using its current text.
 
 ## WLED
 

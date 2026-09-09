@@ -447,11 +447,36 @@ const LANG = {
 
 /* YAML text catalog. Every text passed through _t() is listed with its current
    English value, so it can be overridden without editing the card source. */
+const VIEW_TEXT_DEFAULTS = [
+  'Cameras', 'Safety Sensors (auto)', 'Motion & Doors (auto)',
+  'Safety Sensors', 'Doors & Windows', 'Alarm & Scenes',
+  'Climate Devices (auto)', 'Temperature (auto)', 'Humidity (auto)',
+  'Air Conditioning', 'Refrigerator', 'Ambient',
+  'Live Power', 'AC System Controls', 'Battery Limits', 'Grid & Sync',
+  'Smart Plugs', 'Pack', 'Temps', 'Pack Voltages', 'Charge Controls',
+  'Scenes (auto)', 'Automations (auto)', 'Switches (auto)', 'Helpers (auto)',
+  'Scenes', 'Relays', 'More', 'Automations', 'Modes', 'Voice (Alexa)', 'Tuya Timers',
+  'Lights (auto)', 'All Lights', 'Lights', 'WLED', 'Power System & ESP', 'Server',
+  'Solar', 'Grid', 'Load', 'Backup', 'Mode', 'Export lim', 'DOD hold',
+  'EMS mode', 'Operation mode', 'Export limit', 'SoC protection', 'DoD (on-grid)',
+  'DoD (off-grid)', 'Eco mode power', 'EMS power', 'Grid switch', 'Sync time',
+  'SoC', 'Voltage', 'Current', 'Power', 'Remain', 'Cell Max', 'Cell Min',
+  'Temp 1', 'Temp 2', 'MOS', 'Pack 1', 'Pack 2', 'Pack 3', 'Charge', 'Discharge',
+  'Force chg', 'Charge SoC limit', 'Good Night', 'Morning', 'Away', 'Movie', 'Party',
+  'Relay 1', 'Relay 2', 'Relay 3', 'Relay 4', 'Motion', 'Sunset', 'Door', 'Low-batt',
+  'Smoke→fan', 'Night', 'Vacation', 'Guest', 'Lights off', 'Good night', 'Outlet 1',
+  'Outlet 2', 'All On', 'All Off', 'Adaptive', 'Inv Temp', 'C3', 'Board', 'Gas', 'Lux',
+  'WiFi', 'Grid kWh', 'CPU', 'Memory', 'Disk', 'Uptime', 'Front — Cam 1', 'Gate — Cam 2',
+  'Motion alert when away', 'Press', 'Send', 'On', 'Off', 'ON', 'OFF', 'Open', 'Closed',
+  'Occupied', 'Clear', 'Motion', 'Fan Speed', 'Airflow', 'Eco mode', 'Now:', 'TARGET',
+  'Timer', 'LIVE', '(stream not set)', 'No climate entities found.', 'No scenes found.',
+  'No smart plugs configured. Add them in the editor → Smart Plugs View.',
+  'No lighting entities configured. Add them in the editor → Lighting View.'
+];
 const DEFAULT_TEXT_OVERRIDES = Object.freeze({
   ...Object.fromEntries(Object.keys(LANG.de).map(text => [text, text])),
+  ...Object.fromEntries(VIEW_TEXT_DEFAULTS.map(text => [text, text])),
   HEADER_SUBTITLE: 'ENERGY • AUTOMATION • SECURITY • by the Khan',
-  'AC System Controls': 'AC System Controls',
-  'Power System & ESP': 'Power System & ESP',
   'AC 3-Phase Monitor': 'AC 3-Phase Monitor',
   '12V DC SYSTEM': '12V DC SYSTEM',
   'DC CURRENT': 'DC CURRENT',
@@ -2512,7 +2537,7 @@ class CasaLuna extends HTMLElement {
   /* Each returns an HTML string. Interactions are wired by _bindPanelWidgets() after render,
      via data-* attributes, so computed/empty rows stay inert and entities can be added later. */
 
-  _wHead(text) { return `<div class="pw-head">${esc(text)}</div>`; }
+  _wHead(text) { return `<div class="pw-head">${esc(this._t(text))}</div>`; }
 
   /* Every editor entity can optionally use title_<config_key> as its display name.
      Existing specialised names (for lights, relays, etc.) still take precedence because
@@ -2529,7 +2554,7 @@ class CasaLuna extends HTMLElement {
 
   /* compact metric TILE: icon / label / value stacked (taps to more-info / history) */
   _wTile(icon, label, entId, unit = '', isPower = false) {
-    label = this._displayLabel(entId, label);
+    label = this._displayLabel(entId, this._t(label));
     const has = !!entId;
     const raw = has ? this._st(entId) : null;
     const bad = raw == null || raw === '' || /^(unavailable|unknown)$/i.test(raw);
@@ -2539,10 +2564,10 @@ class CasaLuna extends HTMLElement {
       val = '--';
     } else if (String(entId).startsWith('binary_sensor.')) {
       const active = ['on', 'open', 'detected'].includes(String(raw).toLowerCase());
-      if (['door', 'window', 'opening', 'garage_door'].includes(deviceClass)) val = active ? 'Open' : 'Closed';
-      else if (['occupancy', 'presence'].includes(deviceClass)) val = active ? 'Occupied' : 'Clear';
-      else if (['motion', 'moving'].includes(deviceClass)) val = active ? 'Motion' : 'Clear';
-      else val = active ? 'On' : 'Off';
+      if (['door', 'window', 'opening', 'garage_door'].includes(deviceClass)) val = this._t(active ? 'Open' : 'Closed');
+      else if (['occupancy', 'presence'].includes(deviceClass)) val = this._t(active ? 'Occupied' : 'Clear');
+      else if (['motion', 'moving'].includes(deviceClass)) val = this._t(active ? 'Motion' : 'Clear');
+      else val = this._t(active ? 'On' : 'Off');
     } else if (isPower) {
       const w = this._watts(entId, NaN);
       val = Number.isFinite(w) ? `${this._dec(w)}${unit ? ' ' + unit : ''}` : `${raw}${unit ? ' ' + unit : ''}`;
@@ -2557,7 +2582,7 @@ class CasaLuna extends HTMLElement {
 
   /* compact toggle TILE: icon / label / switch stacked */
   _wToggleTile(icon, label, entId) {
-    label = this._displayLabel(entId, label);
+    label = this._displayLabel(entId, this._t(label));
     const has = !!entId;
     const on = has && ['on', 'open', 'home', 'unlocked', 'playing'].includes(String(this._st(entId)).toLowerCase());
     return `<div class="pw-ttile">
@@ -2567,6 +2592,7 @@ class CasaLuna extends HTMLElement {
 
   /* smart-plug tile: name + optional live power + on/off toggle */
   _wPlugTile(label, switchId, powerId) {
+    label = this._t(label);
     const has = !!switchId;
     const on = has && ['on', 'open', 'playing'].includes(String(this._st(switchId)).toLowerCase());
     let pw = '';
@@ -2582,6 +2608,8 @@ class CasaLuna extends HTMLElement {
 
   /* compact button TILE */
   _wButtonTile(icon, label, entId, btnText = '', danger = false) {
+    label = this._t(label);
+    btnText = this._t(btnText);
     const has = !!entId;
     return `<div class="pw-ttile" ${has ? `data-press="${esc(entId)}" style="cursor:pointer"` : 'style="opacity:.4"'}>
       <div class="ti">${icon}</div><div class="tl">${esc(label)}</div>
@@ -2590,7 +2618,7 @@ class CasaLuna extends HTMLElement {
 
   /* read-only metric row: icon + label + live value (taps to more-info if entity set) */
   _wRow(icon, label, entId, unit = '') {
-    label = this._displayLabel(entId, label);
+    label = this._displayLabel(entId, this._t(label));
     const has = !!entId;
     const st = has ? this._st(entId) : null;
     const val = st == null ? '--' : `${st}${unit ? ' ' + unit : ''}`;
@@ -2601,6 +2629,7 @@ class CasaLuna extends HTMLElement {
 
   /* toggle row for switch/light/input_boolean/fan/automation/script */
   _wToggle(icon, label, entId) {
+    label = this._t(label);
     const has = !!entId;
     const on = has && ['on', 'open', 'home', 'unlocked', 'playing'].includes(String(this._st(entId)).toLowerCase());
     return `<div class="pw">
@@ -2610,7 +2639,7 @@ class CasaLuna extends HTMLElement {
 
   /* slider row for number entities (min/max/step pulled from entity attrs when present) */
   _wSlider(icon, label, entId, fallbackMin = 0, fallbackMax = 100, fallbackStep = 1, unit = '') {
-    label = this._displayLabel(entId, label);
+    label = this._displayLabel(entId, this._t(label));
     const has = !!entId;
     const cur = has ? this._num(entId, NaN) : NaN;
     const mnV = has && Number.isFinite(this._numRaw(this._attr(entId, 'min'))) ? +this._attr(entId, 'min') : fallbackMin;
@@ -2629,7 +2658,7 @@ class CasaLuna extends HTMLElement {
 
   /* select/dropdown row for select entities */
   _wSelect(icon, label, entId, fallbackOptions = []) {
-    label = this._displayLabel(entId, label);
+    label = this._displayLabel(entId, this._t(label));
     const has = !!entId;
     const opts = has ? (this._attr(entId, 'options') || fallbackOptions) : fallbackOptions;
     const cur = has ? this._st(entId) : null;
@@ -2642,7 +2671,8 @@ class CasaLuna extends HTMLElement {
 
   /* button row for button entities or service calls */
   _wButton(icon, label, entId, btnText = 'Press', danger = false) {
-    label = this._displayLabel(entId, label);
+    label = this._displayLabel(entId, this._t(label));
+    btnText = this._t(btnText);
     const has = !!entId;
     return `<div class="pw">
       <span class="pw-ic">${icon}</span><span class="pw-lbl">${esc(label)}</span>
@@ -2653,7 +2683,7 @@ class CasaLuna extends HTMLElement {
   _wScenes(scenes) {
     const cells = scenes.map(([icon, label, entId]) =>
       `<div class="pw-scene" ${entId ? `data-scene="${esc(entId)}"` : 'style="opacity:.45"'}>
-        <span class="si">${icon}</span>${esc(label)}</div>`).join('');
+        <span class="si">${icon}</span>${esc(this._t(label))}</div>`).join('');
     return `<div class="pw-scenes">${cells}</div>`;
   }
 
@@ -2661,21 +2691,23 @@ class CasaLuna extends HTMLElement {
   _wCameras(cams) {
     const base = this.config.camera_stream_base || '';
     const cells = cams.map(([label, src]) => {
+      label = this._t(label);
       const url = src && base ? `${base}/stream.html?src=${encodeURIComponent(src)}&mode=mse` : '';
       const body = url
         ? `<iframe src="${esc(url)}" allowfullscreen></iframe>`
         : src
           ? `<img class="camStream" data-cam-id="${esc(src)}" alt="${esc(label)}">`
-          : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#5a7a9a;font-size:12px">📷 ${esc(label)}<br>(stream not set)</div>`;
+          : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#5a7a9a;font-size:12px">📷 ${esc(label)}<br>${esc(this._t('(stream not set)'))}</div>`;
       return `<div class="pw-cam" ${src ? `data-cam-tap="${esc(src)}" data-cam-label="${esc(label)}" data-cam-url="${esc(url)}"` : ''}>
         ${body}
-        <div class="clbl">${esc(label)}</div><div class="crec">LIVE</div></div>`;
+        <div class="clbl">${esc(label)}</div><div class="crec">${esc(this._t('LIVE'))}</div></div>`;
     }).join('');
     return `<div class="pw-cams">${cells}</div>`;
   }
 
   /* climate control card: current temp + target steppers + mode/fan/swing chips + eco (climate.*) */
   _wClimate(label, entId) {
+    label = this._t(label);
     const has = !!entId;
     const cur = has ? this._attr(entId, 'current_temperature') : null;
     const target = has ? this._attr(entId, 'temperature') : null;
@@ -2692,11 +2724,11 @@ class CasaLuna extends HTMLElement {
     const modeChips = modes.map(m => chip(m === st, has ? `data-hvac="${esc(entId)}" data-mode="${esc(m)}"` : 'style="opacity:.4"', m)).join('');
     let extra = '';
     if (has && fanModes && fanModes.length) {
-      extra += `<div class="pw-head" style="margin:10px 0 6px">Fan Speed</div>
+      extra += `<div class="pw-head" style="margin:10px 0 6px">${esc(this._t('Fan Speed'))}</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">${fanModes.map(f => chip(f === curFan, `data-fan="${esc(entId)}" data-val="${esc(f)}"`, f)).join('')}</div>`;
     }
     if (has && swingModes && swingModes.length) {
-      extra += `<div class="pw-head" style="margin:10px 0 6px">Airflow</div>
+      extra += `<div class="pw-head" style="margin:10px 0 6px">${esc(this._t('Airflow'))}</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">${swingModes.map(s => chip(s === curSwing, `data-swing="${esc(entId)}" data-val="${esc(s)}"`, s)).join('')}</div>`;
     }
     if (has && presets && presets.includes('eco')) {
@@ -2705,12 +2737,12 @@ class CasaLuna extends HTMLElement {
     return `<div class="pw" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span class="pw-lbl" style="font-size:15px">${esc(label)}</span>
-        <span style="font-size:12px;color:#7fa3c4">Now: <b style="color:#5bc8ff">${cur != null ? (+cur).toFixed(1) + '°' : '--'}</b></span>
+        <span style="font-size:12px;color:#7fa3c4">${esc(this._t('Now:'))} <b style="color:#5bc8ff">${cur != null ? (+cur).toFixed(1) + '°' : '--'}</b></span>
       </div>
       <div style="display:flex;align-items:center;justify-content:center;gap:18px">
         <div class="pw-btn" style="width:38px;height:38px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;font-size:20px"
           ${has ? `data-tempstep="${esc(entId)}" data-delta="-0.5"` : 'style="opacity:.4"'}>−</div>
-        <div style="text-align:center;min-width:74px"><div style="font-size:10px;color:#7fa3c4">TARGET</div>
+        <div style="text-align:center;min-width:74px"><div style="font-size:10px;color:#7fa3c4">${esc(this._t('TARGET'))}</div>
           <div data-target="${esc(entId)}" style="font-size:26px;font-weight:700;color:#ffd24a">${target != null ? (+target).toFixed(1) + '°' : '--'}</div></div>
         <div class="pw-btn" style="width:38px;height:38px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;font-size:20px"
           ${has ? `data-tempstep="${esc(entId)}" data-delta="0.5"` : 'style="opacity:.4"'}>+</div>
@@ -2722,6 +2754,7 @@ class CasaLuna extends HTMLElement {
 
   /* inline toggle (no row wrapper) — for embedding inside other widgets */
   _wToggleInline(icon, label, entId, on, dataAttr) {
+    label = this._t(label);
     return `<div style="display:flex;align-items:center;gap:12px;padding:9px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(120,180,255,.14);border-radius:10px">
       <span class="pw-ic">${icon}</span><span class="pw-lbl">${esc(label)}</span>
       <div class="pw-tgl ${on ? 'on' : ''}" ${dataAttr}><div class="kn"></div></div></div>`;
@@ -2732,6 +2765,7 @@ class CasaLuna extends HTMLElement {
      automation reads the same helpers to do the actual switching). The card never runs the
      schedule itself — a sleeping tablet would miss it. Pass the helper entity_ids. */
   _wTimer(label, switchEnt, onHelper, offHelper, enableHelper) {
+    label = this._t(label);
     const has = !!switchEnt;
     const on = has && ['on', 'open'].includes(String(this._st(switchEnt)).toLowerCase());
     const hhmm = (ent) => {
@@ -2752,10 +2786,10 @@ class CasaLuna extends HTMLElement {
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="pw-tgl ${en ? 'on' : ''}" ${enableHelper ? `data-toggle="${esc(enableHelper)}"` : 'style="opacity:.4"'} style="flex-shrink:0"><div class="kn"></div></div>
-        <span style="font-size:12px;color:#7fa3c4">Timer</span>
-        <span style="font-size:11px;color:#7fa3c4;margin-left:auto">ON</span>
+        <span style="font-size:12px;color:#7fa3c4">${esc(this._t('Timer'))}</span>
+        <span style="font-size:11px;color:#7fa3c4;margin-left:auto">${esc(this._t('ON'))}</span>
         <input type="time" class="pw-time" value="${esc(onT)}" ${onHelper ? `data-settime="${esc(onHelper)}"` : 'disabled style="opacity:.4"'}>
-        <span style="font-size:11px;color:#7fa3c4">OFF</span>
+        <span style="font-size:11px;color:#7fa3c4">${esc(this._t('OFF'))}</span>
         <input type="time" class="pw-time" value="${esc(offT)}" ${offHelper ? `data-settime="${esc(offHelper)}"` : 'disabled style="opacity:.4"'}>
       </div></div>`;
   }
@@ -2765,7 +2799,7 @@ class CasaLuna extends HTMLElement {
 
   /* light control: each configured light is a large, direct on/off button. */
   _wLight(label, entId) {
-    label = this._displayLabel(entId, label);
+    label = this._displayLabel(entId, this._t(label));
     const has = !!entId;
     const st = has ? this._st(entId) : null;
     const on = String(st).toLowerCase() === 'on';
@@ -2776,7 +2810,7 @@ class CasaLuna extends HTMLElement {
         style="width:100%;min-height:72px;display:flex;align-items:center;gap:10px;padding:12px;box-sizing:border-box;cursor:${has ? 'pointer' : 'default'};background:${on ? 'linear-gradient(135deg,rgba(255,194,45,.34),rgba(255,130,20,.16))' : 'rgba(255,255,255,.035)'};border:1px solid ${on ? 'rgba(255,205,75,.7)' : 'rgba(130,180,220,.22)'};border-radius:12px;opacity:${has ? '1' : '.4'}">
         <span style="font-size:22px;line-height:1">💡</span>
         <span style="min-width:0;flex:1;font-size:13px;font-weight:700;color:#eaf4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(label)}</span>
-        <span style="font-size:11px;font-weight:800;letter-spacing:.06em;color:${on ? '#ffe38a' : '#7fa3c4'}">${on ? (pct ? pct + '%' : 'ON') : 'OFF'}</span>
+        <span style="font-size:11px;font-weight:800;letter-spacing:.06em;color:${on ? '#ffe38a' : '#7fa3c4'}">${on ? (pct ? pct + '%' : this._t('ON')) : this._t('OFF')}</span>
       </div>
     </div>`;
   }
@@ -2784,7 +2818,7 @@ class CasaLuna extends HTMLElement {
   /* Dedicated WLED card: the WLED entity is separate from ordinary room lights and
      keeps its brightness slider available in the Lighting popup. */
   _wWled(label, entId) {
-    label = this._displayLabel(entId, label);
+    label = this._displayLabel(entId, this._t(label));
     const has = !!entId;
     const on = has && String(this._st(entId)).toLowerCase() === 'on';
     const brightness = has ? this._attr(entId, 'brightness') : null;

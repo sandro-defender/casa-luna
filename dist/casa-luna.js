@@ -1,4 +1,4 @@
-// v1.0.0 stable · build no.105
+// v1.1.0 · build no.106
 /* ════════════════════════════════════════════════════════════════════
    casa-luna.js — Casa Luna Edition · by The Khan
    Custom element: <casa-luna>  (renamed from khan-skycard to avoid
@@ -13,7 +13,7 @@
 
 (() => {
 'use strict';
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const VB_W = 1500, VB_H = 1000;
 
 /* ── i18n: card's own captions. Keyed by the English string; English is the
@@ -563,7 +563,7 @@ const glowShadow = g => `inset 0 1px 0 rgba(120,210,255,.28),inset 0 -1px 0 rgba
    quoted value (e.g. thresh_temp_warn: "40") so downstream code can rely on the type
    instead of every call site re-coercing defensively. Coerced once in setConfig(). */
 const NUMERIC_CONFIG_KEYS = [
-  'battery_full_ah', 'battery_full_wh', 'battery2_full_ah', 'battery2_full_wh',
+  'battery_full_ah', 'battery_full_wh',
   'inverter_max_power', 'pv_max_power', 'lower_section_offset', 'charger_battery_capacity_wh',
   'thresh_temp_warn', 'thresh_temp_critical', 'thresh_cell_v_low', 'thresh_cell_v_critical', 'thresh_cell_v_high',
   'thresh_soc_low', 'thresh_soc_critical', 'thresh_load_warn', 'thresh_load_critical',
@@ -598,8 +598,6 @@ class CasaLuna extends HTMLElement {
   static getStubConfig() {
     return {
       pv1_power: '',
-      pv2_power: '',
-      pv3_power: '', pv4_power: '', pv5_power: '', pv6_power: '',
       pv_total_power: '',
       grid_active_power: '',
       grid_export_energy: '',
@@ -625,11 +623,7 @@ class CasaLuna extends HTMLElement {
       battery_max_cell: '',
       inv_temp: '',
       batt_dis: '',
-      battery2_soc: '', battery2_power: '', battery2_current: '',
-      battery2_voltage: '', battery2_mos: '',
       battery_full_ah: 0, battery_full_wh: 0, battery_cap_unit: 'ah',
-      battery2_cap_unit: 'ah',
-      battery2_full_ah: 0, battery2_full_wh: 0,
       inverter_max_power: 6000, pv_max_power: 7500,
       lower_section_offset: 0,
       charger_state: '', charger_current: '', charger_power: '',
@@ -641,15 +635,13 @@ class CasaLuna extends HTMLElement {
       label_bms_temp: 'BMS TEMP', label_endurance: 'ENDURANCE',
       label_batt_current: 'BATT CURRENT', label_capacity: 'CAPACITY',
       pv1_voltage: '',
-      pv2_voltage: '',
-      pv3_voltage: '', pv4_voltage: '', pv5_voltage: '', pv6_voltage: '',
+      battery_pack1_voltage: '', battery_pack2_voltage: '', battery_pack3_voltage: '',
       grid_import_today: '',
       grid_voltage: '',
       _show_phase: true, grid_phase_a: '', grid_phase_b: '', grid_phase_c: '',
       grid_phase_a_volt: '', grid_phase_b_volt: '', grid_phase_c_volt: '',
-      _show_battery2: false,
       invert_battery_power: false, invert_grid_power: true,
-      _show_pv_extra: false, _show_ev: false,
+      _show_ev: false,
       _show_bars: true, _show_battstats: true, _show_pvtile: true,
       _extra_tile_1_enabled: true,  _extra_tile_1_label: 'Heat Pump',   _extra_tile_1_entity: '', _extra_tile_1_icon: 'heat',
       _extra_tile_2_enabled: true,  _extra_tile_2_label: 'Irrigation',  _extra_tile_2_entity: '', _extra_tile_2_icon: 'water',
@@ -775,6 +767,7 @@ class CasaLuna extends HTMLElement {
     this._bgKey = '';
     this._bgFlip = false;
     this._histCache = {};   // entity -> {t, pts}
+    this._histInflight = new Map();
     this._lastMinute = -1;
     // PV wave double-buffer (matches khan-skycard exactly)
     this._pvSlot = 'A';
@@ -787,6 +780,10 @@ class CasaLuna extends HTMLElement {
   setConfig(config) {
     const stub = CasaLuna.getStubConfig();
     const merged = { ...stub, ...config };
+    /* Casa Luna now supports one battery and one PV input. Keep older YAML harmless
+       by ignoring retired feature flags instead of rendering legacy UI. */
+    merged._show_battery2 = false;
+    merged._show_pv_extra = false;
     /* type guard: a hand-written YAML value like thresh_temp_warn: "40" (string) would
        otherwise silently rely on JS's loose comparison coercion everywhere it's read —
        fine today (only comparisons), but fragile if future code ever does arithmetic
@@ -835,15 +832,34 @@ class CasaLuna extends HTMLElement {
       const s = states[id];
       sig += id + ':' + (s ? (s.last_updated || s.state) : '\u2205') + '|';
     }
-    for (const id in states) {
-      if (watched.has(id)) continue;
-      const dom = id.split('.')[0];
-      const dc = states[id].attributes?.device_class;
-      if (CasaLuna.AUTODISC_DOMAINS.has(dom)
-        || (dom === 'binary_sensor' && CasaLuna.AUTODISC_BINARY_DC.has(dc))
-        || (dom === 'sensor' && CasaLuna.AUTODISC_SENSOR_DC.has(dc))) {
-        sig += id + ':' + (states[id].last_updated || states[id].state) + '|';
+    /* Discovery is expensive on a large HA installation. Refresh this list only at
+       build time and periodically; normal hass pushes then inspect a small set. */
+    const now = Date.now();
+    if (!this._autoDiscoveryIds || now - (this._autoDiscoveryAt || 0) > 300000) {
+      const ids = new Set();
+      const wantsEvents = !(this.config.events_entities || []).length;
+      const wants = {
+        climate: !!this.config.auto_discover_climate,
+        automation: !!this.config.auto_discover_automation,
+        lighting: !!this.config.auto_discover_lighting,
+        security: !!this.config.auto_discover_security,
+      };
+      for (const id in states) {
+        const dom = id.split('.')[0];
+        const dc = states[id].attributes?.device_class;
+        if ((wants.climate && (dom === 'climate' || (dom === 'sensor' && CasaLuna.AUTODISC_SENSOR_DC.has(dc))))
+          || (wants.automation && (dom === 'automation' || dom === 'scene'))
+          || (wants.lighting && dom === 'light')
+          || (wants.security && (dom === 'camera' || (dom === 'binary_sensor' && CasaLuna.AUTODISC_BINARY_DC.has(dc))))
+          || (wantsEvents && (dom === 'automation' || (dom === 'binary_sensor' && CasaLuna.AUTODISC_BINARY_DC.has(dc))))) ids.add(id);
       }
+      this._autoDiscoveryIds = ids;
+      this._autoDiscoveryAt = now;
+    }
+    for (const id of this._autoDiscoveryIds) {
+      if (watched.has(id)) continue;
+      const s = states[id];
+      sig += id + ':' + (s ? (s.last_updated || s.state) : '\u2205') + '|';
     }
     return sig;
   }
@@ -878,6 +894,7 @@ class CasaLuna extends HTMLElement {
   }
   disconnectedCallback() {
     clearInterval(this._clock);
+    this._ro?.disconnect(); this._ro = null;
     if (this._visHandler) document.removeEventListener('visibilitychange', this._visHandler);
     (this._overlays || []).forEach(n => n.remove()); this._overlays = [];
   }
@@ -1124,31 +1141,19 @@ class CasaLuna extends HTMLElement {
   }
   _setTxt(sel, t) { const e = this._q(sel); if (e && e.textContent !== t) e.textContent = t; }
   _setColor(sel, color) { const e = this._q(sel); if (e) e.style.color = color; }
-  /* dual-battery aware value: "v1 | v2 unit" when battery2 on, else "v1 unit". */
+  /* Single-battery value helper. The extra parameters are retained so older internal
+     call sites remain harmless while the retired second-battery model is removed. */
   _dualVal(sel, ent1, ent2, unit, fmt) {
     const f = fmt || (id => this._decEnt(id));
     const v1 = this._num(ent1, NaN);
     const s1 = Number.isFinite(v1) ? f(ent1) : '--';
-    if (this.config._show_battery2) {
-      const v2 = this._num(ent2, NaN);
-      const s2 = Number.isFinite(v2) ? f(ent2) : '--';
-      this._setTxt(sel, `${s1} | ${s2} ${unit}`);
-    } else {
-      this._setTxt(sel, Number.isFinite(v1) ? `${s1} ${unit}` : '--');
-    }
+    this._setTxt(sel, Number.isFinite(v1) ? `${s1} ${unit}` : '--');
   }
 
   /* Sum of PV1-4 power (falls back to pv_total_power if no individual strings set) */
   _pvSum() {
     const c = this.config;
-    const all = c._show_pv_extra
-      ? [c.pv1_power, c.pv2_power, c.pv3_power, c.pv4_power, c.pv5_power, c.pv6_power]
-      : [c.pv1_power, c.pv2_power];
-    const ids = all.filter(Boolean);
-    if (ids.length === 0) return this._watts(c.pv_total_power);
-    let sum = 0;
-    for (const id of ids) sum += this._watts(id);
-    return sum;
+    return c.pv1_power ? this._watts(c.pv1_power) : this._watts(c.pv_total_power);
   }
 
   /* ══════════════ BUILD (once per config) ══════════════ */
@@ -1163,6 +1168,11 @@ class CasaLuna extends HTMLElement {
         transform-origin:top left; }
       .bg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
         transition:opacity 1.6s ease; }
+      [role="button"]:focus-visible,[role="switch"]:focus-visible,select:focus-visible {
+        outline:3px solid #7fd4ff; outline-offset:3px; }
+      @media (prefers-reduced-motion: reduce) {
+        *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; scroll-behavior:auto !important; }
+      }
       /* —— weather system overlays (ported from khan-skycard) —— */
       #wxStars { position:absolute; left:0; top:0; width:${VB_W}px; height:58%; pointer-events:none; transition:opacity 1.4s ease; z-index:1; }
       #wxLayer { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:1; }
@@ -1467,6 +1477,8 @@ class CasaLuna extends HTMLElement {
   }
 
   _build() {
+    this._ro?.disconnect(); this._ro = null;
+    this._autoDiscoveryIds = null;
     this._lang = ((this.config.language || this._hass?.locale?.language || this._hass?.language || 'en') + '').toLowerCase().slice(0, 2);
     const c = this._lc = this._localizedConfig();
     const css = this._styles();
@@ -1804,9 +1816,9 @@ class CasaLuna extends HTMLElement {
     /* PV PWR tile (single row) — above consumption; tap → custom voltage popup */
     const pvTileBox = (() => {
       const [px, py, pw, ph] = SL.r_pvtile;
-      const pvIds = [c.pv1_power, c.pv2_power, c.pv3_power, c.pv4_power, c.pv5_power, c.pv6_power];
-      let rawActive = 0; const maxStrings = c._show_pv_extra ? 6 : 2;
-      for (let i = 0; i < maxStrings; i++) if (pvIds[i] && this._stateObj(pvIds[i])) rawActive = i + 1;
+      const pvIds = [c.pv1_power];
+      let rawActive = 0;
+      if (pvIds[0] && this._stateObj(pvIds[0])) rawActive = 1;
       /* hide-when-empty: no PV string configured at all → drop the tile entirely;
          also respects the explicit show/hide toggle even when entities ARE set */
       if (rawActive === 0 || c._show_pvtile === false) return '';
@@ -1987,16 +1999,15 @@ class CasaLuna extends HTMLElement {
         <div class="flipbtn" id="battFlipBtn" style="right:10px;top:8px">↻</div>
         ${statRows}
       </div>
-      <!-- BACK: 6 PV strings (power + volt) -->
+      <!-- BACK: three battery-pack voltage sensors -->
       <div id="battFaceBack" style="position:absolute;inset:0;display:none">
         <div class="flipbtn" id="battFlipBackBtn" style="right:10px;top:8px">↻</div>
-        <div class="val" style="position:absolute;left:16px;top:10px;font-size:15px;letter-spacing:.05em">PV</div>
+        <div class="val" style="position:absolute;left:16px;top:10px;font-size:15px;letter-spacing:.05em">PACK VOLTAGE</div>
         <div style="position:absolute;left:16px;right:14px;top:38px;bottom:8px;display:flex;flex-direction:column;justify-content:space-around">
-          ${[1, 2, 3, 4, 5, 6].map(n =>
+          ${[1, 2, 3].map(n =>
             `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
-               <div style="font-size:12px;color:#a8cae6;letter-spacing:.03em;width:38px">PV${n}</div>
-               <div class="val" id="bPV${n}P" style="font-size:14px;font-weight:700;color:#ffd24a;text-align:right;flex:1">--</div>
-               <div class="val" id="bPV${n}V" style="font-size:14px;font-weight:700;color:#a8cae6;text-align:right;width:62px">--</div>
+               <div style="font-size:12px;color:#a8cae6;letter-spacing:.03em;width:74px">PACK ${n}</div>
+               <div class="val" id="bPack${n}V" style="font-size:18px;font-weight:700;color:#a8cae6;text-align:right;flex:1">--</div>
              </div>`).join('')}
         </div>
       </div>
@@ -2257,7 +2268,7 @@ class CasaLuna extends HTMLElement {
     const doFlip = () => flipCard && flipCard.classList.toggle('flipped');
     this._q('#phaseFlipBtn')?.addEventListener('click', e => { e.stopPropagation(); doFlip(); });
     this._q('#phaseFlipBackBtn')?.addEventListener('click', e => { e.stopPropagation(); doFlip(); });
-    /* battery value tile flip: corner ↻ button → 6 PV strings; hide dedicated PV tile while flipped.
+    /* battery value tile flip: corner ↻ button → three pack voltages; hide dedicated PV tile while flipped.
        Plain display-swap (no CSS 3D transform) — avoids the backface-visibility/transform-style
        fragility that caused mirrored/overlapping text on some browsers (e.g. some Android WebViews). */
     const battFront = this._q('#battFaceFront'), battBack = this._q('#battFaceBack');
@@ -2272,9 +2283,9 @@ class CasaLuna extends HTMLElement {
     this._q('#battFlipBtn')?.addEventListener('click', e => { e.stopPropagation(); doBattFlip(); });
     this._q('#battFlipBackBtn')?.addEventListener('click', e => { e.stopPropagation(); doBattFlip(); });
     this.shadowRoot.querySelectorAll('.bottile').forEach(t => {
-      let hold;
-      t.addEventListener('click', () => this._tapTile(+t.dataset.n));
-      t.addEventListener('pointerdown', () => { hold = setTimeout(() => this._moreInfoTile(+t.dataset.n), 550); });
+      let hold, held = false;
+      t.addEventListener('click', () => { if (held) { held = false; return; } this._tapTile(+t.dataset.n); });
+      t.addEventListener('pointerdown', () => { held = false; hold = setTimeout(() => { held = true; this._moreInfoTile(+t.dataset.n); }, 550); });
       ['pointerup', 'pointerleave'].forEach(ev => t.addEventListener(ev, () => clearTimeout(hold)));
     });
     this.shadowRoot.querySelectorAll('.stattile').forEach(t =>
@@ -3001,8 +3012,7 @@ class CasaLuna extends HTMLElement {
     const bf = (enKey, mainKey) => (c[enKey] && this._stateObj(c[enKey])) ? c[enKey] : (c[mainKey] || '');
     return this._wHead('Live Power')
       + this._wGrid(4,
-        this._wTile('☀️', 'PV1', bf('en_pv1', 'pv1_power'), 'W', true)
-        + this._wTile('☀️', 'PV2', bf('en_pv2', 'pv2_power'), 'W', true)
+        this._wTile('☀️', 'Solar', bf('en_pv1', 'pv1_power'), 'W', true)
         + this._wTile('🏭', 'Grid', bf('en_grid_power', 'grid_active_power'), 'W', true)
         + this._wTile('🏠', 'Load', bf('en_load', 'consump'), 'W', true)
         + this._wTile('🔋', 'Backup', c.en_backup || '', 'W', true)
@@ -3060,6 +3070,11 @@ class CasaLuna extends HTMLElement {
         this._wTile('🌡️', 'Temp 1', bf('bat_temp1', 'battery_temp1'), '°C')
         + this._wTile('🌡️', 'Temp 2', bf('bat_temp2', 'battery_temp2'), '°C')
         + this._wTile('🌡️', 'MOS', bf('bat_mos', 'battery_mos'), '°C'))
+      + this._wHead('Pack Voltages')
+      + this._wGrid(3,
+        this._wTile('🔋', 'Pack 1', bf('bat_pack1_voltage', 'battery_pack1_voltage'), 'V')
+        + this._wTile('🔋', 'Pack 2', bf('bat_pack2_voltage', 'battery_pack2_voltage'), 'V')
+        + this._wTile('🔋', 'Pack 3', bf('bat_pack3_voltage', 'battery_pack3_voltage'), 'V'))
       + this._wHead('Charge Controls')
       + this._wGrid(3,
         this._wToggleTile('⚡', 'Charge', c.bat_charge_enable || '')
@@ -3322,6 +3337,10 @@ class CasaLuna extends HTMLElement {
     buttons.forEach(el => {
       if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
       if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+      if (!el.hasAttribute('aria-label')) {
+        const statusLabels = { si_wifi: 'Show Wi-Fi status', si_power: 'Open power controls', si_bt: 'Show Bluetooth status', si_cam: 'Open security view', navToggle: 'Toggle navigation' };
+        el.setAttribute('aria-label', statusLabels[el.id] || el.dataset.camLabel || el.textContent.trim() || 'Dashboard control');
+      }
     });
     const selects = r.querySelectorAll('[data-select]');
     selects.forEach(el => { if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0'); });
@@ -3878,9 +3897,12 @@ class CasaLuna extends HTMLElement {
     const BASE = this.config.background_path.replace(/\/$/, '');
     const showEl = this._q(this._bgFlip ? '#bgA' : '#bgB');
     const hideEl = this._q(this._bgFlip ? '#bgB' : '#bgA');
+    const request = (this._bgRequest || 0) + 1;
+    this._bgRequest = request;
+    const apply = src => { if (request === this._bgRequest && showEl?.isConnected && hideEl?.isConnected) { showEl.src = src; showEl.style.opacity = 1; hideEl.style.opacity = 0; } };
     const img = new Image();
-    img.onload = () => { showEl.src = img.src; showEl.style.opacity = 1; hideEl.style.opacity = 0; };
-    img.onerror = () => { showEl.src = `${BASE}/casa-luna.png`; showEl.style.opacity = 1; hideEl.style.opacity = 0; };
+    img.onload = () => apply(img.src);
+    img.onerror = () => apply(`${BASE}/casa-luna.png`);
     img.src = `${BASE}/${key}.png`;
     this._bgFlip = !this._bgFlip;
     // —— weather system: stars (night) + particle overlay (by condition) ——
@@ -4165,29 +4187,19 @@ class CasaLuna extends HTMLElement {
     this._setTxt('#bE', endText);
     this._setColor('#bE', isETA ? '#00d7ff' : '#d8eeff');
     const bELbl = this._q('#bELbl'); if (bELbl) bELbl.textContent = isETA ? 'ETA' : (c.label_endurance || 'Endurance');
-    /* battery back face now shows PV strings (filled below) */
+    /* battery back face shows the three pack-voltage sensors (filled below) */
 
     /* production / consumption boxes */
     this._setTxt('#prTotal', this._kwhEnt(c.today_pv));
-    const pvP = [c.pv1_power, c.pv2_power, c.pv3_power, c.pv4_power, c.pv5_power, c.pv6_power];
-    const pvV = [c.pv1_voltage, c.pv2_voltage, c.pv3_voltage, c.pv4_voltage, c.pv5_voltage, c.pv6_voltage];
-    /* match the tile build: only the strings that actually have an entity configured */
-    let pvSlots = 0; const pvMax = c._show_pv_extra ? 6 : 2;
-    for (let i = 0; i < pvMax; i++) if (pvP[i] && this._stateObj(pvP[i])) pvSlots = i + 1;
-    pvSlots = Math.max(1, pvSlots);
-    for (let i = 0; i < pvSlots; i++) {
-      const pEnt = pvP[i], vEnt = pvV[i];
-      const pEl = this._q(`#prPc${i}`);
-      if (pEl) pEl.textContent = pEnt ? this._powerEnt(pEnt) : '--';
-      const vEl = this._q(`#prVc${i}`);
-      if (vEl) vEl.textContent = vEnt ? `${this._decEnt(vEnt)} V` : '--';
-    }
-    /* battery back face: all 6 PV strings (power + volt) */
-    for (let i = 0; i < 6; i++) {
-      const pe = this._q(`#bPV${i + 1}P`);
-      if (pe) pe.textContent = pvP[i] ? this._powerEnt(pvP[i]) : '--';
-      const ve = this._q(`#bPV${i + 1}V`);
-      if (ve) ve.textContent = pvV[i] ? `${this._decEnt(pvV[i])} V` : '--';
+    const pEl = this._q('#prPc0');
+    if (pEl) pEl.textContent = c.pv1_power ? this._powerEnt(c.pv1_power) : '--';
+    const vEl = this._q('#prVc0');
+    if (vEl) vEl.textContent = c.pv1_voltage ? `${this._decEnt(c.pv1_voltage)} V` : '--';
+    /* Pack-voltage back face: configured per-pack sensors; blanks stay visibly unavailable. */
+    for (let i = 1; i <= 3; i++) {
+      const override = c[`bat_pack${i}_voltage`];
+      const id = override && this._stateObj(override) ? override : c[`battery_pack${i}_voltage`];
+      this._setTxt(`#bPack${i}V`, id ? `${this._decEnt(id)} V` : '--');
     }
     this._setTxt('#cnTotal', this._kwhEnt(c.today_load));
     /* grid imp/exp now shown in middle tiles (#v_gimp / #v_gexp) */
@@ -4199,7 +4211,7 @@ class CasaLuna extends HTMLElement {
     /* totals tiles → white when customized */
     ['imp','exp','pv'].forEach(k => { const ts=this._tileState(k); const el=this._q('#it'+(k==='imp'?'Imp':k==='exp'?'Exp':'Pv')); if(el&&ts.custom) el.style.color='#ffffff'; });
     if (c.history_charts) {
-      this._drawHistory('#prChart', c.pv_total_power || c.pv1_power || c.pv2_power, SL.r_prod[2] - 24, SL.r_prod[3] - 38);
+      this._drawHistory('#prChart', c.pv_total_power || c.pv1_power, SL.r_prod[2] - 24, SL.r_prod[3] - 38);
       this._drawHistory('#cnChart', c.consump, SL.r_cons[2] - 24, SL.r_cons[3] - 38);
     }
 
@@ -4691,6 +4703,8 @@ class CasaLuna extends HTMLElement {
     const key = `${ent}|${minutes}`;
     const cache = this._histCache[key];
     if (cache && Date.now() - cache.t < 5 * 60 * 1000) return cache.pts;
+    if (this._histInflight.has(key)) return this._histInflight.get(key);
+    const request = (async () => {
     try {
       const start = new Date(Date.now() - minutes * 60000).toISOString();
       const res = await this._hass.callApi('GET',
@@ -4699,6 +4713,10 @@ class CasaLuna extends HTMLElement {
       this._histCache[key] = { t: Date.now(), pts: arr };
       return arr;
     } catch { return cache?.pts || null; }
+    finally { this._histInflight.delete(key); }
+    })();
+    this._histInflight.set(key, request);
+    return request;
   }
   async _drawSpark(sel, ent, color) {
     const svg = this._q(sel); if (!svg || !ent) return;
@@ -4871,7 +4889,7 @@ class CasaLunaEditor extends HTMLElement {
     this._config = { ...this._config, [key]: value };
     this._fireChanged();
     // re-render only on structural keys (toggles that show/hide content)
-    if (/^_show_|^_extra_tile_\d+_enabled$|^_extra_tile_\d+_entity$|_enabled$|battery_cap_unit|battery2_cap_unit/.test(key)) this._render();
+    if (/^_show_|^_extra_tile_\d+_enabled$|^_extra_tile_\d+_entity$|_enabled$|battery_cap_unit/.test(key)) this._render();
   }
 
   /* jump a section open + scroll to it (used by on-card pencil via attribute) */
@@ -5202,7 +5220,6 @@ class CasaLunaEditor extends HTMLElement {
       textField('inverter_name', 'Inverter Name', 'e.g. My Inverter'),
       divider(),
       capGroup('Battery Capacity', 'battery_cap_unit', 'battery_full_ah', 'battery_full_wh'),
-      capGroup('Battery 2 Capacity', 'battery2_cap_unit', 'battery2_full_ah', 'battery2_full_wh'),
       divider(),
       numberField('pv_max_power', 'PV Array Max Power', 0, 30000, 100, 'W'),
       numberField('inverter_max_power', 'Inverter Max Power', 0, 20000, 100, 'W'),
@@ -5216,11 +5233,9 @@ class CasaLunaEditor extends HTMLElement {
       info('Enable or disable cards. Disabled cards are hidden from the dashboard.'),
       switchRow('_show_bars', '📊 PV / PWR bars', 'Both bottom capsule bars', true),
       switchRow('_show_phase', '🔀 Phase / Inverter tile', 'Show the 3-phase + inverter tile (with flip)', true),
-      switchRow('_show_battstats', '🔋 Battery value tile', 'Show battery stats (flip → 6 PV strings)', true),
+      switchRow('_show_battstats', '🔋 Battery value tile', 'Show battery stats (flip → 3 pack voltages)', true),
       switchRow('_show_pvtile', '☀️ PV PWR/VOLT tile', 'Show the small PV power/voltage tile next to the battery', true),
-      switchRow('_show_pv_extra', '☀️ Extra PV strings', 'Enable PV3–PV6', false),
       switchRow('_show_ev', '🚗 EV / car charger tile', 'Show the EV charger tile', false),
-      switchRow('_show_battery2', '🔋 Secondary battery', 'Enable a second battery pack', false),
       divider(),
       switchRow('history_charts', '📈 History charts', 'Fetch & render sparkline/chart history (disable to cut HA history-API calls)', true),
     ]));
@@ -5234,21 +5249,9 @@ class CasaLunaEditor extends HTMLElement {
     ]));
 
     shell.appendChild(section('solar', '🔆', 'Solar', [
-      eg('pv1_power', 'PV1 POWER'),
-      eg('pv2_power', 'PV2 POWER'),
+      eg('pv1_power', 'SOLAR POWER'),
       eg('pv_total_power', 'PV TOTAL POWER'),
-      eg('pv1_voltage', 'PV1 VOLT'),
-      eg('pv2_voltage', 'PV2 VOLT'),
-      section('solar_extra', '➕', 'Extra PV Strings', [
-        eg('pv3_power', 'PV3 POWER'),
-        eg('pv4_power', 'PV4 POWER'),
-        eg('pv5_power', 'PV5 POWER'),
-        eg('pv6_power', 'PV6 POWER'),
-        eg('pv3_voltage', 'PV3 VOLT'),
-        eg('pv4_voltage', 'PV4 VOLT'),
-        eg('pv5_voltage', 'PV5 VOLT'),
-        eg('pv6_voltage', 'PV6 VOLT'),
-      ], { sub: true }),
+      eg('pv1_voltage', 'SOLAR VOLTAGE'),
       divider(),
       eg('today_pv', "TODAY'S PV"),
       egL('total_pv', 'TOTAL PV (lifetime)'),
@@ -5327,13 +5330,6 @@ class CasaLunaEditor extends HTMLElement {
       eg('today_batt_chg', 'BATT CHARGE'),
       eg('batt_dis', 'Batt Discharge'),
       textField('label_chg_dis', 'Charge/Discharge — caption', 'CHG / DIS'),
-      section('battery2', '🔋', 'Secondary Battery', [
-        eg('battery2_soc', 'BATT2 SOC'),
-        eg('battery2_power', 'BATT2 POWER'),
-        eg('battery2_current', 'BATT2 CURRENT'),
-        eg('battery2_voltage', 'BATT2 VOLT'),
-        eg('battery2_mos', 'BATT2 BMS'),
-      ], { sub: true }),
     ]));
 
     shell.appendChild(section('ev', '🚗', 'EV / Car Charger', [
@@ -5479,6 +5475,11 @@ class CasaLunaEditor extends HTMLElement {
       picker('bat_remain', 'Remaining', true),
       picker('bat_cellmax', 'Cell Max', true), picker('bat_cellmin', 'Cell Min', true),
       picker('bat_temp1', 'Temp 1', true), picker('bat_temp2', 'Temp 2', true), picker('bat_mos', 'MOS Temp', true),
+      divider(),
+      info('Set the voltage sensor for each of your three battery packs. A Battery View override is optional.'),
+      picker('battery_pack1_voltage', 'Pack 1 voltage', true), picker('bat_pack1_voltage', 'Pack 1 override', true),
+      picker('battery_pack2_voltage', 'Pack 2 voltage', true), picker('bat_pack2_voltage', 'Pack 2 override', true),
+      picker('battery_pack3_voltage', 'Pack 3 voltage', true), picker('bat_pack3_voltage', 'Pack 3 override', true),
       divider(),
       picker('bat_charge_enable', 'Charging enable (switch)', true),
       picker('bat_discharge_enable', 'Discharging enable (switch)', true),

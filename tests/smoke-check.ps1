@@ -14,6 +14,9 @@ $required = @(
   'prefers-reduced-motion',
   '_histInflight',
   '_bgRequest',
+  '_navViews',
+  'nav_custom1_enabled',
+  'nav_custom2_enabled',
   'merged._show_battery2 = false',
   'merged._show_pv_extra = false'
 )

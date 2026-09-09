@@ -73,6 +73,12 @@ All entity fields are optional. Empty fields render as `--` or hide the related 
 
 Set `wled_entity` to your WLED `light.*` entity in the **Lighting View** editor. It appears in its own WLED section in the Lighting popup, with a direct on/off button and a brightness slider. `wled_name` changes the displayed name.
 
+## Left navigation and custom cards
+
+The editor’s **Left Navigation** section lets you show or hide each built-in left-side card. It also includes **Custom Card 1** and **Custom Card 2**. Enable either card, set its title, subtitle, and icon, then add a comma-separated list of Home Assistant entity IDs. The custom card opens a live list of those entities.
+
+Available custom icon names: `gear`, `home`, `bolt`, `plug`, `batt`, `therm`, `shield`, `bulb`, `sun`, `pump`, `irrig`, and `warn`.
+
 ## Battery packs
 
 Casa Luna supports one battery system with up to three pack-voltage sensors:

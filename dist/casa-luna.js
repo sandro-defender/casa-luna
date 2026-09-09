@@ -644,6 +644,11 @@ class CasaLuna extends HTMLElement {
       invert_battery_power: false, invert_grid_power: true,
       _show_ev: false,
       _show_bars: true, _show_battstats: true, _show_pvtile: true,
+      nav_dashboard_enabled: true, nav_energy_enabled: true, nav_plugs_enabled: true,
+      nav_battery_enabled: true, nav_climate_enabled: true, nav_security_enabled: true,
+      nav_automation_enabled: true, nav_lighting_enabled: true, nav_system_enabled: true,
+      nav_custom1_enabled: false, nav_custom1_title: 'CUSTOM 1', nav_custom1_subtitle: 'Custom entities', nav_custom1_icon: 'gear', view_custom1_entities: [],
+      nav_custom2_enabled: false, nav_custom2_title: 'CUSTOM 2', nav_custom2_subtitle: 'Custom entities', nav_custom2_icon: 'gear', view_custom2_entities: [],
       _extra_tile_1_enabled: true,  _extra_tile_1_label: 'Heat Pump',   _extra_tile_1_entity: '', _extra_tile_1_icon: 'heat',
       _extra_tile_2_enabled: true,  _extra_tile_2_label: 'Irrigation',  _extra_tile_2_entity: '', _extra_tile_2_icon: 'water',
       _extra_tile_3_enabled: true,  _extra_tile_3_label: 'Gas / Flame', _extra_tile_3_entity: '', _extra_tile_3_icon: 'flame',
@@ -1158,6 +1163,18 @@ class CasaLuna extends HTMLElement {
     return c.pv1_power ? this._watts(c.pv1_power) : this._watts(c.pv_total_power);
   }
 
+  _navViews() {
+    const c = this.config || {};
+    const standard = NAV_VIEWS.filter(([key]) => c[`nav_${key}_enabled`] !== false);
+    const custom = [1, 2].filter(n => c[`nav_custom${n}_enabled`]).map(n => [
+      `custom${n}`,
+      c[`nav_custom${n}_title`] || `CUSTOM ${n}`,
+      c[`nav_custom${n}_subtitle`] || 'Custom entities',
+      ICONS[c[`nav_custom${n}_icon`]] ? c[`nav_custom${n}_icon`] : 'gear',
+    ]);
+    return [...standard, ...custom];
+  }
+
   /* ══════════════ BUILD (once per config) ══════════════ */
   /* component styles (static; interpolates only module geometry + scale vars) */
   _styles() {
@@ -1608,12 +1625,15 @@ class CasaLuna extends HTMLElement {
       '255,200,60',  /* lighting — amber */
       '170,190,90',  /* system — olive */
     ];
-    const nav = NAV_VIEWS.map(([key, t, s, ik], i) => {
-      const navH = Math.round(SL.nav.h * 0.9);      /* height -10% */
-      const y = SL.nav.tops[i] + Math.round((SL.nav.h - navH) / 2); /* keep centre fixed */
-      const g = NAV_GLOW[i];
+    const navViews = this._navViews();
+    const navTop = SL.nav.tops[0], navBottom = SL.nav.tops[SL.nav.tops.length - 1];
+    const navH = Math.min(Math.round(SL.nav.h * 0.9), Math.max(52, Math.floor((navBottom - navTop) / Math.max(1, navViews.length - 1) - 4)));
+    const navY = i => navViews.length === 1 ? navTop : Math.round(navTop + i * (navBottom - navTop) / (navViews.length - 1));
+    const nav = navViews.map(([key, t, s, ik], i) => {
+      const y = navY(i);
+      const g = NAV_GLOW[i % NAV_GLOW.length];
       const txtL = 68;
-      return `<div class="box tap navtile collapsible" data-view="${key}" data-i="${i}"
+      return `<div class="box tap navtile collapsible" data-view="${key}" data-i="${i}" data-y="${y}" data-fold-y="${navY(Math.max(0, navViews.length - 3 + i))}"
         style="left:${SL.nav.x}px;top:${y}px;width:${SL.nav.w}px;height:${navH}px;background:var(--cl-box-bg,rgba(0,0,0,.35));
         box-shadow:${glowShadow(g)};overflow:hidden">
         <div class="navFrontLayer">
@@ -1629,9 +1649,8 @@ class CasaLuna extends HTMLElement {
       </div>`;
     }).join('');
 
-    /* single master toggle: collapses/expands all 9 nav tiles together (icon-only ↔ full) */
-    const _navH = Math.round(SL.nav.h * 0.9);
-    const _navBtmY = SL.nav.tops[SL.nav.tops.length - 1] + Math.round((SL.nav.h - _navH) / 2) + _navH + 6;
+    /* single master toggle: collapses/expands visible navigation cards */
+    const _navBtmY = navBottom + navH + 6;
     const navToggle = `<div id="navToggle" style="left:${SL.nav.x}px;top:${_navBtmY}px;width:${SL.nav.w}px;height:20px">
       <span id="navToggleIcon">\u25BE</span>
     </div>`;
@@ -2821,7 +2840,7 @@ class CasaLuna extends HTMLElement {
     const view = this._activeView;
     if (view === 'dashboard') return;
     const inner = this._q('#detailInner');
-    const meta = NAV_VIEWS.find(v => v[0] === view);
+    const meta = this._navViews().find(v => v[0] === view);
     if (!meta) { this._closeView(); return; }   // unknown view → close panel rather than crash on meta[1]
     /* per-view rich builders; fall back to the generic entity list for views not yet built */
     const builders = {
@@ -3321,14 +3340,14 @@ class CasaLuna extends HTMLElement {
      fixed (mirrors the right-column tiles, which anchor their right edge). ── */
   _setNavCompact(folded) {
     this._navCompact = folded;
-    const N = SL.nav.tops.length;   // total nav tiles (9)
+    const N = this.shadowRoot.querySelectorAll('.navtile').length;
     const KEEP = 3;                 // first tiles that remain visible when folded
     this.shadowRoot.querySelectorAll('.navtile').forEach(t => {
       const i = +t.dataset.i;
       if (!folded) { t.classList.remove('folded'); t.style.transform = ''; t.style.opacity = ''; return; }
       if (i < KEEP) {
         // slide down into the bottom slot vacated by the hidden tiles
-        const dy = SL.nav.tops[(N - KEEP) + i] - SL.nav.tops[i];
+        const dy = (+t.dataset.foldY || +t.dataset.y || 0) - (+t.dataset.y || 0);
         t.classList.remove('folded');
         t.style.transform = `translateY(${dy}px)`;
         t.style.opacity = '1';
@@ -5490,6 +5509,32 @@ class CasaLunaEditor extends HTMLElement {
       picker('en_ems_power', 'EMS power (number)', true),
       picker('en_grid_switch', 'Grid switch (Tuya)', true),
       picker('en_sync_time', 'Sync time (button)', true),
+    ], { wide: true }));
+
+    shell.appendChild(section('nav_controls', '☰', 'Left Navigation', [
+      info('Choose which cards appear in the left navigation rail. The visible cards automatically re-space to fit.'),
+      switchRow('nav_dashboard_enabled', 'Dashboard', 'Show the main dashboard card', true),
+      switchRow('nav_energy_enabled', 'Energy', 'Show the Energy card', true),
+      switchRow('nav_plugs_enabled', 'Smart Plugs', 'Show the Smart Plugs card', true),
+      switchRow('nav_battery_enabled', 'Battery', 'Show the Battery card', true),
+      switchRow('nav_climate_enabled', 'Climate', 'Show the Climate card', true),
+      switchRow('nav_security_enabled', 'Security', 'Show the Security card', true),
+      switchRow('nav_automation_enabled', 'Automation', 'Show the Automation card', true),
+      switchRow('nav_lighting_enabled', 'Lighting', 'Show the Lighting card', true),
+      switchRow('nav_system_enabled', 'System', 'Show the System card', true),
+      divider(),
+      switchRow('nav_custom1_enabled', 'Custom Card 1', 'Enable an additional left-navigation card', false),
+      textField('nav_custom1_title', 'Custom Card 1 — title', 'CUSTOM 1'),
+      textField('nav_custom1_subtitle', 'Custom Card 1 — subtitle', 'Custom entities'),
+      textField('nav_custom1_icon', 'Custom Card 1 — icon', 'gear'),
+      listField('view_custom1_entities', 'Custom Card 1 — entities'),
+      divider(),
+      switchRow('nav_custom2_enabled', 'Custom Card 2', 'Enable an additional left-navigation card', false),
+      textField('nav_custom2_title', 'Custom Card 2 — title', 'CUSTOM 2'),
+      textField('nav_custom2_subtitle', 'Custom Card 2 — subtitle', 'Custom entities'),
+      textField('nav_custom2_icon', 'Custom Card 2 — icon', 'gear'),
+      listField('view_custom2_entities', 'Custom Card 2 — entities'),
+      info('Custom icon names: gear, home, bolt, plug, batt, therm, shield, bulb, sun, pump, irrig, or warn.'),
     ], { wide: true }));
 
     shell.appendChild(section('nav_plugs', '🔌', 'Smart Plugs View', [

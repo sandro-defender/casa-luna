@@ -1838,7 +1838,7 @@ class CasaLuna extends HTMLElement {
     const irShift = IR[0] - irX;
     const irW = IR[2] + irShift;
     const lower = `
-    <div class="box" id="dc12System" style="left:${IB[0]}px;top:${IB[1]}px;width:${IB[2]}px;height:${IB[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35));${c.dc12_enabled === false ? "display:none" : ""}">
+    <div class="box" id="dc12System" style="left:${IB[0]}px;top:${IB[1]}px;width:${IB[2]}px;height:${IB[3]}px;box-sizing:border-box;overflow:hidden;background:var(--cl-box-bg,rgba(0,0,0,.35));${c.dc12_enabled === false ? "display:none" : ""}">
       <div class="val" style="position:absolute;left:14px;top:10px;font-size:14px;color:#cce4ff">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
       <div style="position:absolute;left:14px;right:14px;top:38px;display:grid;grid-template-columns:1fr 1fr;gap:8px 12px">
         <div><div style="font-size:9px;color:#ffd24a;letter-spacing:.06em">${esc(c.title_dc12_solar_voltage || 'SOLAR')}</div><div class="val" id="dc12SolarV" style="font-size:18px;color:#ffd24a">--</div></div>

@@ -27,6 +27,7 @@ $required = @(
   'custom:slider-button-card',
   'light1_card_type',
   'Slider Light Cards',
+  'id="dc12System" style="left:${IB[0]}px;top:${IB[1]}px;width:${IB[2]}px;height:${IB[3]}px;box-sizing:border-box;overflow:hidden',
   "isDay ? sun.rise : sun.set",
   'text_overrides',
   'AC 3-Phase Monitor',

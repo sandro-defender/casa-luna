@@ -2830,7 +2830,7 @@ class CasaLuna extends HTMLElement {
         style="width:48px;height:48px;flex:0 0 48px;border-radius:50%;border:1px solid ${on ? 'rgba(207,190,255,.95)' : 'rgba(150,185,220,.35)'};background:${on ? 'rgba(165,118,255,.30)' : 'rgba(255,255,255,.05)'};color:${on ? '#f0eaff' : '#9db8d8'};font-size:22px;cursor:${has ? 'pointer' : 'default'}">◉</button>
       <div style="min-width:0;flex:1;display:flex;flex-direction:column;gap:4px">
         <div style="display:flex;align-items:baseline;gap:8px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:14px;font-weight:800;color:#f3f7ff">${esc(label || 'WLED')}</span><span data-brightval="${esc(entId)}" style="font-size:12px;font-weight:800;color:${on ? '#d8caff' : '#9db8d8'}">${esc(state)}</span></div>
-        <div ${has ? `data-bright="${esc(entId)}"` : ''} aria-label="${esc(this._t('BRIGHTNESS'))}"
+        <div class="pw-sld" ${has ? `data-bright="${esc(entId)}"` : ''} aria-label="${esc(this._t('BRIGHTNESS'))}"
           style="height:44px;position:relative;cursor:${has ? 'pointer' : 'default'};${has ? '' : 'pointer-events:none'}">
           <div style="position:absolute;left:0;right:0;top:18px;height:8px;border-radius:6px;background:rgba(255,255,255,.14)"></div>
           <div class="fill" style="width:${pct}%;top:18px;bottom:18px;background:linear-gradient(90deg,#6e4cff,#b26cff,#37d8ff)"></div><div class="thumb" style="left:${pct}%"></div>

@@ -2427,9 +2427,16 @@ class CasaLuna extends HTMLElement {
     const has = !!entId;
     const raw = has ? this._st(entId) : null;
     const bad = raw == null || raw === '' || /^(unavailable|unknown)$/i.test(raw);
+    const deviceClass = has ? this._attr(entId, 'device_class') : '';
     let val;
     if (bad) {
       val = '--';
+    } else if (String(entId).startsWith('binary_sensor.')) {
+      const active = ['on', 'open', 'detected'].includes(String(raw).toLowerCase());
+      if (['door', 'window', 'opening', 'garage_door'].includes(deviceClass)) val = active ? 'Open' : 'Closed';
+      else if (['occupancy', 'presence'].includes(deviceClass)) val = active ? 'Occupied' : 'Clear';
+      else if (['motion', 'moving'].includes(deviceClass)) val = active ? 'Motion' : 'Clear';
+      else val = active ? 'On' : 'Off';
     } else if (isPower) {
       const w = this._watts(entId, NaN);
       val = Number.isFinite(w) ? `${this._dec(w)}${unit ? ' ' + unit : ''}` : `${raw}${unit ? ' ' + unit : ''}`;

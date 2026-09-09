@@ -1834,22 +1834,26 @@ class CasaLuna extends HTMLElement {
        box's left edge moved; existing content (donut, labels) gets the same
        offset added so it stays anchored at its original screen position rather
        than jumping. */
-    const irX = c._show_phase ? IR[0] : IB[0];
+    /* The phase monitor used to expand into the left slot when hidden. That slot
+       now belongs to the independent 12V card, so never let an empty EMS panel
+       cover the 12V readings. */
+    const expandAcIntoPhaseSlot = !c._show_phase && c.dc12_enabled === false;
+    const irX = expandAcIntoPhaseSlot ? IB[0] : IR[0];
     const irShift = IR[0] - irX;
     const irW = IR[2] + irShift;
     const lower = `
     <div class="box" id="dc12System" style="left:${IB[0]}px;top:${IB[1]}px;width:${IB[2]}px;height:${IB[3]}px;box-sizing:border-box;overflow:hidden;background:var(--cl-box-bg,rgba(0,0,0,.35));${c.dc12_enabled === false ? "display:none" : ""}">
       <div class="val" style="position:absolute;left:14px;top:10px;font-size:14px;color:#cce4ff">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
       <div style="position:absolute;left:14px;right:14px;top:38px;display:grid;grid-template-columns:1fr 1fr;gap:8px 12px">
-        <div><div style="font-size:9px;color:#ffd24a;letter-spacing:.06em">${esc(c.title_dc12_solar_voltage || 'SOLAR')}</div><div class="val" id="dc12SolarV" style="font-size:18px;color:#ffd24a">--</div></div>
-        <div><div style="font-size:9px;color:#7fd4ff;letter-spacing:.06em">${esc(c.title_dc12_supply_voltage || 'SUPPLY')}</div><div class="val" id="dc12SupplyV" style="font-size:18px;color:#7fd4ff">--</div></div>
-        <div><div style="font-size:9px;color:#7ce05a;letter-spacing:.06em">${esc(c.title_dc12_battery_voltage || 'BATTERY')}</div><div class="val" id="dc12BatteryV" style="font-size:18px;color:#7ce05a">--</div></div>
-        <div><div style="font-size:9px;color:#a8cae6;letter-spacing:.06em">${esc(c.title_dc12_current || 'CURRENT')}</div><div class="val" id="dc12Current" style="font-size:18px;color:#eaf4ff">--</div></div>
+        <div style="min-width:0"><div style="font-size:9px;color:#ffd24a;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_solar_voltage || 'SOLAR')}</div><div class="val" id="dc12SolarV" style="font-size:18px;color:#ffd24a">--</div></div>
+        <div style="min-width:0"><div style="font-size:9px;color:#7fd4ff;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_supply_voltage || 'SUPPLY')}</div><div class="val" id="dc12SupplyV" style="font-size:18px;color:#7fd4ff">--</div></div>
+        <div style="min-width:0"><div style="font-size:9px;color:#7ce05a;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_battery_voltage || 'BATTERY')}</div><div class="val" id="dc12BatteryV" style="font-size:18px;color:#7ce05a">--</div></div>
+        <div style="min-width:0"><div style="font-size:9px;color:#a8cae6;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_current || 'CURRENT')}</div><div class="val" id="dc12Current" style="font-size:18px;color:#eaf4ff">--</div></div>
       </div>
       <div style="position:absolute;right:14px;bottom:9px;font-size:12px;font-weight:700;color:#d8eeff"><span style="font-size:9px;color:#607892;letter-spacing:.06em">${esc(c.title_dc12_power || 'POWER')}</span> <span id="dc12Power">--</span></div>
     </div>
     <div class="box" style="left:${irX}px;top:${IR[1]}px;width:${irW}px;height:${IR[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35))">
-      ${!c._show_phase ? `
+      ${expandAcIntoPhaseSlot ? `
       <div style="position:absolute;left:10px;top:10px;width:${irShift - 20}px;height:${IR[3] - 20}px;border-radius:10px;
         background:rgba(20,40,70,.5);border:1px solid rgba(150,200,255,.25);padding:9px 11px;box-sizing:border-box;overflow:hidden">
         <div style="font-size:9.5px;color:#7fa3c4;letter-spacing:.05em">☰ ${this._t('EMS MODE')}</div>

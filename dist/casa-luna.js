@@ -1852,12 +1852,14 @@ class CasaLuna extends HTMLElement {
           <div id="phaseRowV" style="position:absolute;left:54px;right:12px;top:72px;display:flex;gap:6px;justify-content:space-between;font-size:15px;font-weight:700;color:#a8cae6"></div>
         </div>
         <div class="flipface" style="position:absolute;inset:0;transform:rotateY(180deg);padding:0">
-          <div class="val" style="position:absolute;left:14px;top:10px;font-size:15px">${esc(c.label_inv_title || 'AC SOURCE')}</div>
+          <div class="val" style="position:absolute;left:14px;top:10px;font-size:15px">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
           <div class="flipbtn" id="phaseFlipBackBtn" style="right:10px;top:10px">↻</div>
-          <div style="position:absolute;left:14px;top:42px;font-size:10px;color:#a8cae6;letter-spacing:.04em">PWR<br><span style="font-size:8px;opacity:.7">kW</span></div>
-          <div id="invRowP" style="position:absolute;left:54px;right:12px;top:40px;display:flex;gap:6px;justify-content:space-between;font-size:15px;font-weight:700;color:#eaf4ff"></div>
-          <div style="position:absolute;left:14px;top:74px;font-size:10px;color:#a8cae6;letter-spacing:.04em">VOLT<br><span style="font-size:8px;opacity:.7">V</span></div>
-          <div id="invRowV" style="position:absolute;left:54px;right:12px;top:72px;display:flex;gap:6px;justify-content:space-between;font-size:15px;font-weight:700;color:#a8cae6"></div>
+          <div style="position:absolute;left:14px;right:14px;top:39px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px">
+            <div style="min-width:0"><div style="font-size:8px;letter-spacing:1px;color:#91a5c2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_solar_voltage || 'SOLAR')}</div><div class="val" id="dcPhaseSolarV" style="margin-top:3px;font-size:14px;color:#ffd24a;white-space:nowrap">--</div></div>
+            <div style="min-width:0"><div style="font-size:8px;letter-spacing:1px;color:#91a5c2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_supply_voltage || 'SUPPLY')}</div><div class="val" id="dcPhaseSupplyV" style="margin-top:3px;font-size:14px;color:#7fd4ff;white-space:nowrap">--</div></div>
+            <div style="min-width:0"><div style="font-size:8px;letter-spacing:1px;color:#91a5c2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_battery_voltage || 'BATTERY')}</div><div class="val" id="dcPhaseBatteryV" style="margin-top:3px;font-size:14px;color:#7ce05a;white-space:nowrap">--</div></div>
+            <div style="min-width:0"><div style="font-size:8px;letter-spacing:1px;color:#91a5c2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_current || 'CURRENT')}</div><div class="val" id="dcPhaseCurrent" style="margin-top:3px;font-size:14px;color:#fff;white-space:nowrap">--</div></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1904,12 +1906,10 @@ class CasaLuna extends HTMLElement {
       </div>
     </div>`;
 
-    /* The three companion tiles complete the 12V system. They replace the old
-       inverter totals, keeping all DC readings beside the current ring. */
     const invTileDefs = [
-      { id:'itImp', entity: c.dc12_solar_voltage,   label: c.title_dc12_solar_voltage   || 'SOLAR',   ik:'sun',  col:'#ffd24a' },
-      { id:'itExp', entity: c.dc12_supply_voltage,  label: c.title_dc12_supply_voltage  || 'SUPPLY',  ik:'bolt', col:'#7fd4ff' },
-      { id:'itPv',  entity: c.dc12_battery_voltage, label: c.title_dc12_battery_voltage || 'BATTERY', ik:'batt', col:'#7ce05a' },
+      { id:'itImp', tsKey:'imp', label:c.label_total_imp || this._t('TOTAL IMP'), ik:'plug', col:'#ffb45a' },
+      { id:'itExp', tsKey:'exp', label:c.label_total_exp || this._t('TOTAL EXP'), ik:'bolt', col:'#7ce05a' },
+      { id:'itPv', tsKey:'pv', label:c.label_total_pv || this._t('TOTAL PV'), ik:'sun', col:'#ffd24a' },
     ];
     /* label / icon / value — three rows, vertically equal-spaced; bigger icon */
     const invTiles = invTileDefs.map((td, k) => {
@@ -1919,7 +1919,7 @@ class CasaLuna extends HTMLElement {
       const row1 = Math.round(h * 1/6);   // label centre
       const row2 = Math.round(h * 3/6);   // icon centre
       const row3 = Math.round(h * 5/6);   // value centre
-      const ent = td.entity || '';
+      const ent = this._tileState(td.tsKey).entity || '';
       return `<div class="box${ent ? ' tap' : ''}" ${ent ? `data-entity="${esc(ent)}"` : ''} style="left:${x}px;top:${y}px;width:${w}px;height:${h}px">
         <div class="lbl" id="itLbl${k}" style="position:absolute;left:4px;right:4px;top:${row1-7}px;text-align:center;font-size:11px;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(td.label)}</div>
         <div style="position:absolute;left:0;top:${row2-iconSz/2}px;width:100%;display:flex;justify-content:center;align-items:center">${icon(td.ik, iconSz)}</div>
@@ -4260,12 +4260,16 @@ class CasaLuna extends HTMLElement {
     }
     /* Separate 12V DC system: intentionally independent from the AC inverter data. */
     const dcVoltage = id => id ? `${this._decEnt(id)} V` : '--';
+    this._setTxt('#dcPhaseSolarV', dcVoltage(c.dc12_solar_voltage));
+    this._setTxt('#dcPhaseSupplyV', dcVoltage(c.dc12_supply_voltage));
+    this._setTxt('#dcPhaseBatteryV', dcVoltage(c.dc12_battery_voltage));
+    this._setTxt('#dcPhaseCurrent', c.dc12_current ? `${this._decEnt(c.dc12_current)} A` : '--');
     this._setTxt('#dc12SolarV', dcVoltage(c.dc12_solar_voltage));
     this._setTxt('#dc12SupplyV', dcVoltage(c.dc12_supply_voltage));
     this._setTxt('#dc12BatteryV', dcVoltage(c.dc12_battery_voltage));
     this._setTxt('#dc12Current', c.dc12_current ? `${this._decEnt(c.dc12_current)} A` : '--');
     this._setTxt('#dc12Power', c.dc12_power ? this._powerEnt(c.dc12_power) : '--');
-    /* phase flip tile: front = grid phase pwr/volt, back = inverter pwr/volt (3 values each, no L1/L2 prefixes) */
+    /* phase flip tile: front = grid phase power/voltage; back = configured 12V readings. */
     const phaseVal = (id) => { const v = this._num(id, NaN); return Number.isFinite(v) ? v.toFixed(1) : '--'; };
     const phaseKw = (id) => { const v = this._watts(id, NaN); return Number.isFinite(v) ? `${this._dec(v / 1000)}` : '--'; };
     const setRow = (sel, vals) => { const el = this._q(sel); if (el) { const h = vals.map(v => `<span style="flex:1;text-align:center">${v}</span>`).join(''); if (el._h !== h) { el.innerHTML = h; el._h = h; } } };
@@ -4430,11 +4434,12 @@ class CasaLuna extends HTMLElement {
     }
     this._setTxt('#cnTotal', this._kwhEnt(c.today_load));
     /* grid imp/exp now shown in middle tiles (#v_gimp / #v_gexp) */
-    /* 12V readings beside the current ring. */
-    const dcTileVoltage = id => id ? `${this._decEnt(id)} V` : '--';
-    this._setTxt('#itImp', dcTileVoltage(c.dc12_solar_voltage));
-    this._setTxt('#itExp', dcTileVoltage(c.dc12_supply_voltage));
-    this._setTxt('#itPv', dcTileVoltage(c.dc12_battery_voltage));
+    /* Original inverter summary tiles remain unchanged. */
+    const pvTs = this._tileState('pv');
+    this._setTxt('#itImp', c.total_import ? this._kwhEnt(c.total_import) : '--');
+    this._setTxt('#itExp', c.total_export ? this._kwhEnt(c.total_export) : '--');
+    this._setTxt('#itPv', pvTs.custom ? this._rawTile(pvTs.entity) : this._kwhEnt(c.total_pv));
+    ['imp','exp','pv'].forEach(k => { const ts=this._tileState(k); const el=this._q('#it'+(k==='imp'?'Imp':k==='exp'?'Exp':'Pv')); if(el&&ts.custom) el.style.color='#ffffff'; });
     if (c.history_charts) {
       this._drawHistory('#prChart', c.pv_total_power || c.pv1_power, SL.r_prod[2] - 24, SL.r_prod[3] - 38);
       this._drawHistory('#cnChart', c.consump, SL.r_cons[2] - 24, SL.r_cons[3] - 38);

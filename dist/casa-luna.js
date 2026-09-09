@@ -1457,12 +1457,14 @@ class CasaLuna extends HTMLElement {
       .stattile .val { font-family:'Segoe UI',Roboto,'Helvetica Neue',system-ui,sans-serif; }
       /* nav slide-panel: opens from nav rail's right edge, fills the MIDDLE zone only
          (right column stays visible). Vertical: below header → PV/PWR bar. */
+      /* Left-navigation detail panels are standalone cards: round and border both
+         sides so the edge next to the navigation rail is not visibly cut off. */
       .detail { position:absolute; left:231px; top:130px;
         width:869px; height:768px;
         display:none; z-index:40;
         background:linear-gradient(135deg,rgba(12,28,52,.975),rgba(8,18,38,.985));
-        border:2px solid rgba(0,200,255,.55); border-left:none;
-        border-radius:0 16px 16px 0;
+        border:2px solid rgba(0,200,255,.55);
+        border-radius:16px;
         box-shadow:0 0 50px rgba(0,180,255,.30),inset 0 1px 0 rgba(120,210,255,.18);
         transform-origin:left center; overflow:hidden; }
       .detail.open { display:block; animation:clPanelIn .28s cubic-bezier(.2,.7,.3,1); }

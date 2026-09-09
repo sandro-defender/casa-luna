@@ -38,7 +38,8 @@ $required = @(
   'AC 3-Phase Monitor',
   'Start Here',
   'dc12_max_current',
-  'label_grid_indicator'
+  'label_grid_indicator',
+  'Left-navigation detail panels are standalone cards'
 )
 
 foreach ($marker in $required) {
@@ -52,7 +53,8 @@ $forbidden = @(
   'id="tpRing"',
   'id="tpSvg"',
   'id="invRowP"',
-  'id="invRowV"'
+  'id="invRowV"',
+  'border-left:none'
 )
 
 foreach ($marker in $forbidden) {

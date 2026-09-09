@@ -2815,29 +2815,43 @@ class CasaLuna extends HTMLElement {
     </div>`;
   }
 
-  /* Dedicated WLED control: a compact slider-button-card-style row. The toggle and
-     brightness slider are separate touch targets so dragging never flips the light. */
+  /* WLED is rendered as the user's installed slider-button-card, rather than a
+     look-alike built into the popup. */
   _wWled(label, entId) {
     label = this._displayLabel(entId, this._t(label));
-    const has = !!entId;
-    const on = has && String(this._st(entId)).toLowerCase() === 'on';
-    const brightness = has ? this._attr(entId, 'brightness') : null;
-    const pct = brightness != null ? Math.round((+brightness / 255) * 100) : 0;
-    const effect = has ? this._attr(entId, 'effect') : null;
-    const state = on ? (pct ? `${pct}%` : this._t('ON')) : this._t('OFF');
-    return `<div class="pw" style="gap:12px;padding:10px 12px;min-height:68px;background:${on ? 'linear-gradient(100deg,rgba(114,65,255,.30),rgba(0,190,255,.12))' : 'rgba(255,255,255,.04)'};border-color:${on ? 'rgba(142,120,255,.7)' : 'rgba(120,180,255,.18)'};opacity:${has ? '1' : '.45'}">
-      <button type="button" ${has ? `data-toggle="${esc(entId)}"` : 'disabled'} aria-label="Toggle ${esc(label || 'WLED')}" aria-pressed="${on}"
-        style="width:48px;height:48px;flex:0 0 48px;border-radius:50%;border:1px solid ${on ? 'rgba(207,190,255,.95)' : 'rgba(150,185,220,.35)'};background:${on ? 'rgba(165,118,255,.30)' : 'rgba(255,255,255,.05)'};color:${on ? '#f0eaff' : '#9db8d8'};font-size:22px;cursor:${has ? 'pointer' : 'default'}">◉</button>
-      <div style="min-width:0;flex:1;display:flex;flex-direction:column;gap:4px">
-        <div style="display:flex;align-items:baseline;gap:8px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:14px;font-weight:800;color:#f3f7ff">${esc(label || 'WLED')}</span><span data-brightval="${esc(entId)}" style="font-size:12px;font-weight:800;color:${on ? '#d8caff' : '#9db8d8'}">${esc(state)}</span></div>
-        <div class="pw-sld" ${has ? `data-bright="${esc(entId)}"` : ''} aria-label="${esc(this._t('BRIGHTNESS'))}"
-          style="height:44px;position:relative;cursor:${has ? 'pointer' : 'default'};${has ? '' : 'pointer-events:none'}">
-          <div style="position:absolute;left:0;right:0;top:18px;height:8px;border-radius:6px;background:rgba(255,255,255,.14)"></div>
-          <div class="fill" style="width:${pct}%;top:18px;bottom:18px;background:linear-gradient(90deg,#6e4cff,#b26cff,#37d8ff)"></div><div class="thumb" style="left:${pct}%"></div>
-        </div>
-        ${effect ? `<span style="font-size:10px;color:#b8c9df;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(this._t('Effect:'))} ${esc(effect)}</span>` : ''}
-      </div>
-    </div>`;
+    return `<div data-wled-slider-card data-entity="${esc(entId)}" data-name="${esc(label || 'WLED')}"
+      style="min-height:58px;margin-bottom:8px"><div class="hint" style="padding:14px;opacity:.7">Loading WLED control…</div></div>`;
+  }
+
+  async _mountWledSliderButtonCards(root) {
+    const holders = [...root.querySelectorAll('[data-wled-slider-card]')];
+    if (!holders.length) return;
+    const loadHelpers = window.loadCardHelpers;
+    if (typeof loadHelpers !== 'function') {
+      holders.forEach(el => { el.innerHTML = '<div class="hint" style="padding:14px">Install slider-button-card to show this WLED control.</div>'; });
+      return;
+    }
+    try {
+      const helpers = await loadHelpers();
+      holders.forEach(holder => {
+        if (!holder.isConnected || holder.dataset.wledMounted) return;
+        const entity = holder.dataset.entity;
+        if (!entity) return;
+        const card = helpers.createCardElement({
+          type: 'custom:slider-button-card', entity,
+          slider: { direction: 'left-right', background: 'gradient', use_percentage_bg_opacity: true, show_track: false, use_state_color: true },
+          icon: { tap_action: { action: 'toggle' }, icon: '', show: true, use_state_color: true },
+          action_button: { mode: 'toggle', show: false }, compact: true, show_state: true,
+        });
+        card.hass = this._hass;
+        holder.dataset.wledMounted = 'true';
+        holder.replaceChildren(card);
+      });
+      requestAnimationFrame(() => this._fitDetailPanel());
+    } catch (error) {
+      console.warn('casa-luna: could not create slider-button-card for WLED', error);
+      holders.forEach(el => { el.innerHTML = '<div class="hint" style="padding:14px">WLED slider-button-card could not be loaded.</div>'; });
+    }
   }
 
   /* raw numeric parse (no entity lookup) — for attribute min/max/step */
@@ -2987,6 +3001,7 @@ class CasaLuna extends HTMLElement {
        snap the panel back to the top while someone's reading further down. */
     const prevScroll = inner.scrollTop;
     inner.innerHTML = `<h3>${meta[1]}</h3><div class="dsub">${meta[2]}</div>${body}`;
+    void this._mountWledSliderButtonCards(inner);
     this._bindPanelWidgets(inner);
     /* generic list also needs its row binding */
     inner.querySelectorAll('.erow').forEach(r => {

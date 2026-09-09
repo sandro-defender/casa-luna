@@ -25,6 +25,7 @@ $required = @(
   'DEFAULT_TEXT_OVERRIDES',
   'VIEW_TEXT_DEFAULTS',
   'slider-button-card-style row',
+  "isDay ? sun.rise : sun.set",
   'text_overrides',
   'AC 3-Phase Monitor',
   'Start Here',

@@ -4732,9 +4732,10 @@ class CasaLuna extends HTMLElement {
     const isDay = !sun.night;
     const bell = sun.bell ?? 0.5;
 
-    // rise/set labels
-    this._setTxt('#tRise', sun.rise);
-    this._setTxt('#tSet', sun.set);
+    // Use the same sun.sun timestamps for both arcs. At night swap their displayed
+    // positions so the moon's existing left-to-right motion reads sunset → sunrise.
+    this._setTxt('#tRise', isDay ? sun.rise : sun.set);
+    this._setTxt('#tSet', isDay ? sun.set : sun.rise);
 
     // Arc track opacity
     const dayT = getEl('sunArcTrack'), nightT = getEl('sunArcNight');

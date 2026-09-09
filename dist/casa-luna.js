@@ -1834,15 +1834,34 @@ class CasaLuna extends HTMLElement {
        box's left edge moved; existing content (donut, labels) gets the same
        offset added so it stays anchored at its original screen position rather
        than jumping. */
-    /* The phase monitor used to expand into the left slot when hidden. That slot
-       now belongs to the independent 12V card, so never let an empty EMS panel
-       cover the 12V readings. */
-    const expandAcIntoPhaseSlot = !c._show_phase && c.dc12_enabled === false;
-    const irX = expandAcIntoPhaseSlot ? IB[0] : IR[0];
+    /* This lower-left slot switches between the original 3-phase flip card and
+       the separate 12V card. Keeping one owner prevents any overlap. */
+    const showPhaseCard = c._show_phase !== false;
+    const irX = IR[0];
     const irShift = IR[0] - irX;
     const irW = IR[2] + irShift;
     const lower = `
-    <div class="box" id="dc12System" style="left:${IB[0]}px;top:${IB[1]}px;width:${IB[2]}px;height:${IB[3]}px;box-sizing:border-box;overflow:hidden;background:var(--cl-box-bg,rgba(0,0,0,.35));${c.dc12_enabled === false ? "display:none" : ""}">
+    <div class="box flipcard" id="phaseFlip" style="left:${IB[0]}px;top:${IB[1]}px;width:${IB[2]}px;height:${IB[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35));perspective:800px;${showPhaseCard ? '' : 'display:none'}">
+      <div class="flipinner" id="phaseFlipInner" style="position:absolute;inset:0;transition:transform .5s;transform-style:preserve-3d">
+        <div class="flipface" style="position:absolute;inset:0;padding:0">
+          <div class="val" style="position:absolute;left:14px;top:10px;font-size:15px">${esc(c.label_phase_title || this._t('GRID PHASES'))}</div>
+          <div class="flipbtn" id="phaseFlipBtn" style="right:10px;top:10px">↻</div>
+          <div style="position:absolute;left:14px;top:42px;font-size:10px;color:#a8cae6;letter-spacing:.04em">PWR<br><span style="font-size:8px;opacity:.7">kW</span></div>
+          <div id="phaseRowP" style="position:absolute;left:54px;right:12px;top:40px;display:flex;gap:6px;justify-content:space-between;font-size:15px;font-weight:700;color:#eaf4ff"></div>
+          <div style="position:absolute;left:14px;top:74px;font-size:10px;color:#a8cae6;letter-spacing:.04em">VOLT<br><span style="font-size:8px;opacity:.7">V</span></div>
+          <div id="phaseRowV" style="position:absolute;left:54px;right:12px;top:72px;display:flex;gap:6px;justify-content:space-between;font-size:15px;font-weight:700;color:#a8cae6"></div>
+        </div>
+        <div class="flipface" style="position:absolute;inset:0;transform:rotateY(180deg);padding:0">
+          <div class="val" style="position:absolute;left:14px;top:10px;font-size:15px">${esc(c.label_inv_title || 'AC SOURCE')}</div>
+          <div class="flipbtn" id="phaseFlipBackBtn" style="right:10px;top:10px">↻</div>
+          <div style="position:absolute;left:14px;top:42px;font-size:10px;color:#a8cae6;letter-spacing:.04em">PWR<br><span style="font-size:8px;opacity:.7">kW</span></div>
+          <div id="invRowP" style="position:absolute;left:54px;right:12px;top:40px;display:flex;gap:6px;justify-content:space-between;font-size:15px;font-weight:700;color:#eaf4ff"></div>
+          <div style="position:absolute;left:14px;top:74px;font-size:10px;color:#a8cae6;letter-spacing:.04em">VOLT<br><span style="font-size:8px;opacity:.7">V</span></div>
+          <div id="invRowV" style="position:absolute;left:54px;right:12px;top:72px;display:flex;gap:6px;justify-content:space-between;font-size:15px;font-weight:700;color:#a8cae6"></div>
+        </div>
+      </div>
+    </div>
+    <div class="box" id="dc12System" style="left:${IB[0]}px;top:${IB[1]}px;width:${IB[2]}px;height:${IB[3]}px;box-sizing:border-box;overflow:hidden;background:var(--cl-box-bg,rgba(0,0,0,.35));${!showPhaseCard && c.dc12_enabled !== false ? '' : 'display:none'}">
       <div class="val" style="position:absolute;left:14px;top:10px;font-size:14px;color:#cce4ff">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
       <div style="position:absolute;left:14px;right:14px;top:38px;display:grid;grid-template-columns:1fr 1fr;gap:8px 12px">
         <div style="min-width:0"><div style="font-size:9px;color:#ffd24a;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_solar_voltage || 'SOLAR')}</div><div class="val" id="dc12SolarV" style="font-size:18px;color:#ffd24a">--</div></div>
@@ -1853,14 +1872,6 @@ class CasaLuna extends HTMLElement {
       <div style="position:absolute;right:14px;bottom:9px;font-size:12px;font-weight:700;color:#d8eeff"><span style="font-size:9px;color:#607892;letter-spacing:.06em">${esc(c.title_dc12_power || 'POWER')}</span> <span id="dc12Power">--</span></div>
     </div>
     <div class="box" style="left:${irX}px;top:${IR[1]}px;width:${irW}px;height:${IR[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35))">
-      ${expandAcIntoPhaseSlot ? `
-      <div style="position:absolute;left:10px;top:10px;width:${irShift - 20}px;height:${IR[3] - 20}px;border-radius:10px;
-        background:rgba(20,40,70,.5);border:1px solid rgba(150,200,255,.25);padding:9px 11px;box-sizing:border-box;overflow:hidden">
-        <div style="font-size:9.5px;color:#7fa3c4;letter-spacing:.05em">☰ ${this._t('EMS MODE')}</div>
-        <div class="val val-fit" id="goodweEmsVal" style="font-size:18px;font-weight:800;color:#39d353;margin-top:6px">--</div>
-        <div style="font-size:9px;color:#6f8aa6;letter-spacing:.04em;margin-top:8px">${this._t('OPERATION')}</div>
-        <div class="val val-fit" id="goodweOpVal" style="font-size:12px;font-weight:650;color:#a8cae6;margin-top:2px">--</div>
-      </div>` : ''}
       <svg style="position:absolute;left:${DC[0]-irX-10}px;top:${(IR[3]-115)/2}px;width:115px;height:115px" viewBox="0 0 115 115">
         ${(() => {
           const cx = 57.5, cy = 57.5, r = 44, sw = 6.1;
@@ -4199,7 +4210,7 @@ class CasaLuna extends HTMLElement {
 
     /* GOODWE box EMS/Operation mode card — only present when phase tile is hidden
        (the freed-space card). Reuses Energy View's already-configured entities. */
-    if (!c._show_phase) {
+    if (c._show_phase === false) {
       const emsSo = this._stateObj(c.en_ems_mode);
       this._setTxt('#goodweEmsVal', emsSo ? (this._hass?.formatEntityState?.(emsSo) ?? this._cap(emsSo.state)) : '--');
       const opSo = this._stateObj(c.en_op_mode);
@@ -5464,6 +5475,7 @@ class CasaLunaEditor extends HTMLElement {
     shell.appendChild(section('toggles', '🎚️', 'Toggles', [
       info('Enable or disable cards. Disabled cards are hidden from the dashboard.'),
       switchRow('_show_bars', '📊 PV / PWR bars', 'Both bottom capsule bars', true),
+      switchRow('_show_phase', '🔄 AC 3-Phase monitor', 'Show the original Grid Phases / AC Source flip card. Turn it off to show the 12V DC card in this slot.', true),
       switchRow('dc12_enabled', '🔋 12V DC system tile', 'Show the separate solar / supply / battery DC tile', true),
       switchRow('_show_battstats', '🔋 Battery value tile', 'Show battery stats (flip → 3 pack voltages)', true),
       switchRow('_show_pvtile', '☀️ PV PWR/VOLT tile', 'Show the small PV power/voltage tile next to the battery', true),

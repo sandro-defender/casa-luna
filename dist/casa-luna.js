@@ -619,6 +619,7 @@ class CasaLuna extends HTMLElement {
       battery_temp1: '',
       battery_temp2: '',
       battery_mos: '',
+      battery_cell_voltage: '',
       battery_min_cell: '',
       battery_max_cell: '',
       inv_temp: '',
@@ -4148,12 +4149,16 @@ class CasaLuna extends HTMLElement {
       this._dualVal('#bBms', c.battery_mos, c.battery2_mos, '°C');
       const mv = this._num(c.battery_mos, NaN);
       this._setColor('#bBms', Number.isFinite(mv) ? tempColor(mv) : '#eaf4ff');
-      let mn = this._num(c.battery_min_cell, NaN), mx = this._num(c.battery_max_cell, NaN);
-      let mnRaw = this._st(c.battery_min_cell), mxRaw = this._st(c.battery_max_cell);
+      const cellFallback = c.battery_cell_voltage || '';
+      const minEntity = c.battery_min_cell || cellFallback;
+      const maxEntity = c.battery_max_cell || cellFallback;
+      let mn = this._num(minEntity, NaN), mx = this._num(maxEntity, NaN);
+      let mnRaw = this._st(minEntity), mxRaw = this._st(maxEntity);
       /* guard: if sensors are swapped (min>max), display sorted low|high */
       if (Number.isFinite(mn) && Number.isFinite(mx) && mn > mx) { const t = mn; mn = mx; mx = t; const tr = mnRaw; mnRaw = mxRaw; mxRaw = tr; }
       const mns = Number.isFinite(mn) ? this._dec(mnRaw) : '--', mxs = Number.isFinite(mx) ? this._dec(mxRaw) : '--';
-      this._setTxt('#bCv', (Number.isFinite(mn) || Number.isFinite(mx)) ? `${mns}|${mxs}` : '--');
+      const oneCellSensor = minEntity && minEntity === maxEntity;
+      this._setTxt('#bCv', (Number.isFinite(mn) || Number.isFinite(mx)) ? (oneCellSensor ? mns : `${mns}|${mxs}`) : '--');
       /* cell-voltage health colour: red critical, orange low/high, green normal — worse of min/max wins */
       const cvCrit = Number(c.thresh_cell_v_critical) || 3.0, cvLow = Number(c.thresh_cell_v_low) || 3.1, cvHigh = Number(c.thresh_cell_v_high) || 3.65;
       const cellVColor = v => !Number.isFinite(v) ? null : v <= cvCrit ? 3 : (v <= cvLow || v >= cvHigh) ? 2 : 1;
@@ -5315,6 +5320,7 @@ class CasaLunaEditor extends HTMLElement {
       eg('battery_temp2', 'TEMP 2'),
       switchRow('cell_temp_x10', '🌡️ Cell temp ×10', 'Enable if cell temps read 10× too low (e.g. shows 3.3 instead of 33°C)'),
       eg('battery_mos', 'BMS TEMP'),
+      eg('battery_cell_voltage', 'CELL VOLT'),
       eg('battery_min_cell', 'MIN CELL'),
       eg('battery_max_cell', 'MAX CELL'),
       divider(),

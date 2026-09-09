@@ -1861,7 +1861,10 @@ class CasaLuna extends HTMLElement {
         </div>
       </div>
     </div>
-    <div class="box" id="dc12System" style="left:${IB[0]}px;top:${IB[1]}px;width:${IB[2]}px;height:${IB[3]}px;box-sizing:border-box;overflow:hidden;background:var(--cl-box-bg,rgba(0,0,0,.35));${!showPhaseCard && c.dc12_enabled !== false ? '' : 'display:none'}">
+    <!-- The 12V system remains in the right inverter-style card (current ring +
+         grid-power line). Do not render a duplicate here: this slot is solely for
+         the optional original 3-phase monitor. -->
+    <div id="dc12System" style="display:none">
       <div class="val" style="position:absolute;left:14px;top:10px;font-size:14px;color:#cce4ff">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
       <div style="position:absolute;left:14px;right:14px;top:38px;display:grid;grid-template-columns:1fr 1fr;gap:8px 12px">
         <div style="min-width:0"><div style="font-size:9px;color:#ffd24a;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title_dc12_solar_voltage || 'SOLAR')}</div><div class="val" id="dc12SolarV" style="font-size:18px;color:#ffd24a">--</div></div>
@@ -5475,8 +5478,8 @@ class CasaLunaEditor extends HTMLElement {
     shell.appendChild(section('toggles', '🎚️', 'Toggles', [
       info('Enable or disable cards. Disabled cards are hidden from the dashboard.'),
       switchRow('_show_bars', '📊 PV / PWR bars', 'Both bottom capsule bars', true),
-      switchRow('_show_phase', '🔄 AC 3-Phase monitor', 'Show the original Grid Phases / AC Source flip card. Turn it off to show the 12V DC card in this slot.', true),
-      switchRow('dc12_enabled', '🔋 12V DC system tile', 'Show the separate solar / supply / battery DC tile', true),
+      switchRow('_show_phase', '🔄 AC 3-Phase monitor', 'Show or hide the original Grid Phases / AC Source flip card. This does not affect the 12V card.', true),
+      switchRow('dc12_enabled', '🔋 12V DC system tile', 'Show the separate 12V system in the right inverter-style area.', true),
       switchRow('_show_battstats', '🔋 Battery value tile', 'Show battery stats (flip → 3 pack voltages)', true),
       switchRow('_show_pvtile', '☀️ PV PWR/VOLT tile', 'Show the small PV power/voltage tile next to the battery', true),
       switchRow('_show_ev', '🚗 EV / car charger tile', 'Show the EV charger tile', false),

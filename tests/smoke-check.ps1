@@ -22,7 +22,9 @@ $required = @(
   '_populateDemoEntities',
   '_demoEntityId',
   'AC 3-Phase Monitor',
-  'Start Here'
+  'Start Here',
+  'dc12_max_current',
+  'label_grid_indicator'
 )
 
 foreach ($marker in $required) {

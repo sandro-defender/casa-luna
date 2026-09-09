@@ -564,7 +564,7 @@ const glowShadow = g => `inset 0 1px 0 rgba(120,210,255,.28),inset 0 -1px 0 rgba
    instead of every call site re-coercing defensively. Coerced once in setConfig(). */
 const NUMERIC_CONFIG_KEYS = [
   'battery_full_ah', 'battery_full_wh',
-  'pv_max_power', 'lower_section_offset', 'charger_battery_capacity_wh',
+  'pv_max_power', 'grid_max_power', 'dc12_max_current', 'lower_section_offset', 'charger_battery_capacity_wh',
   'thresh_temp_warn', 'thresh_temp_critical', 'thresh_cell_v_low', 'thresh_cell_v_critical', 'thresh_cell_v_high',
   'thresh_soc_low', 'thresh_soc_critical', 'thresh_load_warn', 'thresh_load_critical',
   'thresh_endurance_low', 'thresh_endurance_crit',
@@ -607,8 +607,9 @@ class CasaLuna extends HTMLElement {
       total_import: '', total_export: '',
       dc12_enabled: true, dc12_name: '12V DC SYSTEM',
       dc12_solar_voltage: '', dc12_supply_voltage: '', dc12_battery_voltage: '',
-      dc12_current: '', dc12_power: '', dc12_max_power: 500,
-      label_pv_indicator: 'PV', label_pwr_indicator: '12V PWR',
+      dc12_current: '', dc12_power: '', dc12_max_current: 100,
+      label_pv_indicator: 'PV', label_grid_indicator: 'GRID PWR', label_dc12_current_indicator: 'DC CURRENT',
+      grid_max_power: 6000,
       today_batt_chg: '',
       today_load: '',
       battery_soc: '',
@@ -1817,7 +1818,7 @@ class CasaLuna extends HTMLElement {
           }
           return out;
         })()}
-        <text x="57.5" y="48" font-size="14" fill="#a8cae6" text-anchor="middle">12V VOLT</text>
+        <text x="57.5" y="48" font-size="14" fill="#a8cae6" text-anchor="middle">${esc(c.label_dc12_current_indicator || 'DC CURRENT')}</text>
         <text id="donutPct" x="57.5" y="80" font-size="${Number(c.sz_invload)||22}" font-weight="800" fill="#eaf4ff" text-anchor="middle">--%</text>
       </svg>
       <div class="val" style="position:absolute;left:${14+irShift}px;top:10px;font-size:10px">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
@@ -2263,7 +2264,7 @@ class CasaLuna extends HTMLElement {
           <div id="wxLayer"></div>
           ${(() => { const dimOp = Number(c.edge_dim_opacity); return Number.isFinite(dimOp) && dimOp > 0 ? `<div class="dim" style="opacity:${Math.min(100, dimOp) / 100}"></div>` : ''; })()}
           ${header}${arc}${navToggle}${nav}
-          ${c._show_bars ? barHtml('pv', SL.pv, c.label_pv_indicator || 'PV', '#43ea13', 10) + barHtml('pwr', SL.pwr, c.label_pwr_indicator || '12V PWR', '#0a8aea', 10) : ''}
+          ${c._show_bars ? barHtml('pv', SL.pv, c.label_pv_indicator || 'PV', '#43ea13', 10) + barHtml('pwr', SL.pwr, c.label_grid_indicator || 'GRID PWR', '#0a8aea', 10) : ''}
           ${evBanner}
           ${statCont}${stats}${lower}${invTiles}
           ${mode}${cylinder}${battStats}${pvTileBox}${prod}${cons}${events}
@@ -4101,9 +4102,9 @@ class CasaLuna extends HTMLElement {
       this._setTxt('#evStateVal', stSo ? (this._hass?.formatEntityState?.(stSo) ?? this._cap(stSo.state)) : '--');
     }
     this._fillBar('pv', pvW / Math.max(c.pv_max_power, 1), '#43ea13', 10);
-    const dc12W = this._watts(c.dc12_power, NaN);
-    this._fillBar('pwr', Number.isFinite(dc12W) ? dc12W / Math.max(c.dc12_max_power || 1, 1) : 0, '#0a8aea', 10);
-    this._setTxt('#pwrPct', Number.isFinite(dc12W) ? this._powerStr(dc12W) : '--');
+    const gridW = this._watts(c.grid_active_power, NaN);
+    this._fillBar('pwr', Number.isFinite(gridW) ? Math.abs(gridW) / Math.max(c.grid_max_power || 1, 1) : 0, '#0a8aea', 10);
+    this._setTxt('#pwrPct', Number.isFinite(gridW) ? this._powerStr(gridW) : '--');
 
     /* GOODWE box EMS/Operation mode card — only present when phase tile is hidden
        (the freed-space card). Reuses Energy View's already-configured entities. */
@@ -4165,10 +4166,10 @@ class CasaLuna extends HTMLElement {
     setRow('#phaseRowV', [phaseVal(c.grid_phase_a_volt), phaseVal(c.grid_phase_b_volt), phaseVal(c.grid_phase_c_volt)]);
     setRow('#invRowP', [phaseKw(c.inv_l1_power), phaseKw(c.inv_l2_power), phaseKw(c.inv_l3_power)]);
     setRow('#invRowV', [phaseVal(c.inv_l1_volt), phaseVal(c.inv_l2_volt), phaseVal(c.inv_l3_volt)]);
-    const supplyV = this._num(c.dc12_supply_voltage, NaN);
-    const loadPct = Number.isFinite(supplyV) ? Math.min(100, Math.max(0, supplyV / 15 * 100)) : 0;
-    const loadCol = !Number.isFinite(supplyV) ? '#7fa3c4' : supplyV < 11.5 ? '#ff5040' : supplyV < 12 ? '#ffaa28' : '#46e05a';
-    /* 6-block gauge is repurposed as a 0–15V supply-voltage indicator. */
+    const dcCurrent = this._num(c.dc12_current, NaN);
+    const loadPct = Number.isFinite(dcCurrent) ? Math.min(100, Math.abs(dcCurrent) / Math.max(c.dc12_max_current || 1, 1) * 100) : 0;
+    const loadCol = !Number.isFinite(dcCurrent) ? '#7fa3c4' : loadPct >= 90 ? '#ff5040' : loadPct >= 70 ? '#ffaa28' : '#46e05a';
+    /* 6-block gauge fills with the absolute DC current against its configured maximum. */
     const litBlocks = Math.round(loadPct / 100 * 6);
     for (let i = 0; i < 6; i++) {
       const blk = this._q(`#donutBlk${i}`);
@@ -4177,7 +4178,7 @@ class CasaLuna extends HTMLElement {
         blk.setAttribute('stroke', loadCol);
       }
     }
-    this._setTxt('#donutPct', Number.isFinite(supplyV) ? `${this._decEnt(c.dc12_supply_voltage)} V` : '--');
+    this._setTxt('#donutPct', Number.isFinite(dcCurrent) ? `${this._decEnt(c.dc12_current)} A` : '--');
 
     /* inverter row tiles */
     /* capacity compute — khan logic: battery_cap_unit picks Ah or kWh field.
@@ -5390,6 +5391,8 @@ class CasaLunaEditor extends HTMLElement {
       switchRow('invert_grid_power', '🔄 Invert grid power sign', 'Enable if positive = exporting (e.g. GoodWe active_power)'),
       divider(),
       eg('grid_active_power', 'GRID POWER'),
+      textField('label_grid_indicator', 'Top grid indicator label', 'GRID PWR'),
+      numberField('grid_max_power', 'Top grid indicator maximum', 1, 30000, 100, 'W'),
       eg('grid_voltage', 'GRID VOLT'),
       info('GRID IMPORT/EXPORT = today (daily-resetting sensor). TOTAL = lifetime cumulative. These should normally be different sensors — but if your inverter only exposes one, it\'s fine to use it for both.'),
       egL('grid_import_today', 'GRID IMPORT (today)'),
@@ -5407,8 +5410,8 @@ class CasaLunaEditor extends HTMLElement {
     shell.appendChild(section('dc12', '🔋', '12V DC System', [
       info('This is separate from the 220V/AC system. Set the live sensors for your 12V solar panel, power supply, and battery.'),
       textField('dc12_name', 'Tile title', '12V DC SYSTEM'),
-      textField('label_pwr_indicator', 'PWR indicator label', '12V PWR'),
-      numberField('dc12_max_power', 'PWR indicator maximum', 1, 5000, 1, 'W'),
+      textField('label_dc12_current_indicator', 'Current gauge label', 'DC CURRENT'),
+      numberField('dc12_max_current', 'Current gauge maximum', 1, 1000, 1, 'A'),
       eg('dc12_solar_voltage', 'Solar voltage'),
       eg('dc12_supply_voltage', '12V power supply voltage'),
       eg('dc12_battery_voltage', '12V battery voltage'),

@@ -87,7 +87,7 @@ Available custom icon names: `gear`, `home`, `bolt`, `plug`, `batt`, `therm`, `s
 
 ## Separate 12V DC system
 
-The former inverter area keeps its original two-card visual layout, repurposed as a dedicated **12V DC System**. The right circular indicator shows the 12V power-supply voltage, while the left card shows the separate DC readings. Configure it in the editor with your separate DC sensors:
+The former inverter area keeps its original two-card visual layout, repurposed as a dedicated **12V DC System**. The right circular indicator shows DC current in amps and fills as the current approaches its configured maximum; the left card shows the separate DC readings. Configure it in the editor with your separate DC sensors:
 
 - `dc12_solar_voltage`
 - `dc12_supply_voltage`
@@ -95,7 +95,7 @@ The former inverter area keeps its original two-card visual layout, repurposed a
 - `dc12_current`
 - `dc12_power` (optional; drives the top PWR indicator)
 
-This card is separate from your 220V/AC monitoring. The editor lets you rename the card, each DC sensor label, and the top PWR indicator; set its maximum power for the indicator scale. Set `dc12_enabled: false` to hide it. The pre-change module is preserved as `dist/casa-luna.backup.js`.
+This card is separate from your 220V/AC monitoring. The editor lets you rename the card, each DC sensor label, and the current gauge; set its maximum current for the gauge scale. The top grid indicator uses `grid_active_power` and has its own editable label and maximum-power scale in the Grid section. Set `dc12_enabled: false` to hide the DC card. The pre-change module is preserved as `dist/casa-luna.backup.js`.
 
 ## Editor layout and demo mode
 

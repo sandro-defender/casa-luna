@@ -1904,10 +1904,12 @@ class CasaLuna extends HTMLElement {
       </div>
     </div>`;
 
+    /* The three companion tiles complete the 12V system. They replace the old
+       inverter totals, keeping all DC readings beside the current ring. */
     const invTileDefs = [
-      { id:'itImp', tsKey:'imp', label: c.label_total_imp || this._t('TOTAL IMP'), ik:'plug',  col:'#ffb45a' },
-      { id:'itExp', tsKey:'exp', label: c.label_total_exp || this._t('TOTAL EXP'), ik:'bolt',  col:'#7ce05a' },
-      { id:'itPv',  tsKey:'pv',  label: c.label_total_pv  || this._t('TOTAL PV'),  ik:'sun',   col:'#ffd24a' },
+      { id:'itImp', entity: c.dc12_solar_voltage,   label: c.title_dc12_solar_voltage   || 'SOLAR',   ik:'sun',  col:'#ffd24a' },
+      { id:'itExp', entity: c.dc12_supply_voltage,  label: c.title_dc12_supply_voltage  || 'SUPPLY',  ik:'bolt', col:'#7fd4ff' },
+      { id:'itPv',  entity: c.dc12_battery_voltage, label: c.title_dc12_battery_voltage || 'BATTERY', ik:'batt', col:'#7ce05a' },
     ];
     /* label / icon / value — three rows, vertically equal-spaced; bigger icon */
     const invTiles = invTileDefs.map((td, k) => {
@@ -1917,7 +1919,7 @@ class CasaLuna extends HTMLElement {
       const row1 = Math.round(h * 1/6);   // label centre
       const row2 = Math.round(h * 3/6);   // icon centre
       const row3 = Math.round(h * 5/6);   // value centre
-      const ent = this._tileState(td.tsKey).entity || '';
+      const ent = td.entity || '';
       return `<div class="box${ent ? ' tap' : ''}" ${ent ? `data-entity="${esc(ent)}"` : ''} style="left:${x}px;top:${y}px;width:${w}px;height:${h}px">
         <div class="lbl" id="itLbl${k}" style="position:absolute;left:4px;right:4px;top:${row1-7}px;text-align:center;font-size:11px;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(td.label)}</div>
         <div style="position:absolute;left:0;top:${row2-iconSz/2}px;width:100%;display:flex;justify-content:center;align-items:center">${icon(td.ik, iconSz)}</div>
@@ -4428,13 +4430,11 @@ class CasaLuna extends HTMLElement {
     }
     this._setTxt('#cnTotal', this._kwhEnt(c.today_load));
     /* grid imp/exp now shown in middle tiles (#v_gimp / #v_gexp) */
-    /* inverter summary tiles */
-    const pvTs = this._tileState('pv');
-    this._setTxt('#itImp', c.total_import ? this._kwhEnt(c.total_import) : '--');
-    this._setTxt('#itExp', c.total_export ? this._kwhEnt(c.total_export) : '--');
-    this._setTxt('#itPv',  pvTs.custom ? this._rawTile(pvTs.entity) : this._kwhEnt(c.total_pv));
-    /* totals tiles → white when customized */
-    ['imp','exp','pv'].forEach(k => { const ts=this._tileState(k); const el=this._q('#it'+(k==='imp'?'Imp':k==='exp'?'Exp':'Pv')); if(el&&ts.custom) el.style.color='#ffffff'; });
+    /* 12V readings beside the current ring. */
+    const dcTileVoltage = id => id ? `${this._decEnt(id)} V` : '--';
+    this._setTxt('#itImp', dcTileVoltage(c.dc12_solar_voltage));
+    this._setTxt('#itExp', dcTileVoltage(c.dc12_supply_voltage));
+    this._setTxt('#itPv', dcTileVoltage(c.dc12_battery_voltage));
     if (c.history_charts) {
       this._drawHistory('#prChart', c.pv_total_power || c.pv1_power, SL.r_prod[2] - 24, SL.r_prod[3] - 38);
       this._drawHistory('#cnChart', c.consump, SL.r_cons[2] - 24, SL.r_cons[3] - 38);

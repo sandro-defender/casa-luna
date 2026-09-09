@@ -119,7 +119,7 @@ The former inverter area keeps its original two-card visual layout, repurposed a
 - `dc12_current`
 - `dc12_power` (optional; drives the top PWR indicator)
 
-This card is separate from your 220V/AC monitoring. The editor lets you rename the card, each DC sensor label, and the current gauge; set its maximum current for the gauge scale. The top grid indicator uses `grid_active_power` and has its own editable label and maximum-power scale in the Grid section. Set `dc12_enabled: false` to hide the DC card. The pre-change module is preserved as `dist/casa-luna.backup.js`.
+This card is separate from your 220V/AC monitoring. It keeps the current gauge on the left and shows solar, power-supply, and battery voltages in the three companion tiles on the right. The editor lets you rename the card, each DC sensor label, and the current gauge; set its maximum current for the gauge scale. The top grid indicator uses `grid_active_power` and has its own editable label and maximum-power scale in the Grid section. The pre-change module is preserved as `dist/casa-luna.backup.js`.
 
 ## Editor layout and demo mode
 

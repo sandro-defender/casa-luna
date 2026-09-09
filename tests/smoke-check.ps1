@@ -31,6 +31,7 @@ $required = @(
   'const showPhaseCard = c._show_phase !== false',
   'id="phaseFlip"',
   'Do not render a duplicate here',
+  '12V readings beside the current ring',
   "isDay ? sun.rise : sun.set",
   'text_overrides',
   'AC 3-Phase Monitor',

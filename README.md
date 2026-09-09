@@ -63,9 +63,15 @@ battery_pack3_voltage: sensor.battery_pack_3_voltage
 grid_active_power: sensor.grid_power
 consump: sensor.house_power
 weather_entity: weather.home
+wled_entity: light.wled_strip
+wled_name: Living Room LEDs
 ```
 
 All entity fields are optional. Empty fields render as `--` or hide the related optional tile.
+
+## WLED
+
+Set `wled_entity` to your WLED `light.*` entity in the **Lighting View** editor. It appears in its own WLED section in the Lighting popup, with a direct on/off button and a brightness slider. `wled_name` changes the displayed name.
 
 ## Battery packs
 

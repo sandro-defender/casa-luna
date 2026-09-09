@@ -729,6 +729,7 @@ class CasaLuna extends HTMLElement {
       tuya_sw2: '', tuya_sw2_on: '', tuya_sw2_off: '', tuya_sw2_timer: '',
       /* ── LIGHTING view ── (Zigbee light pre-filled; others slots) */
       light1: '', light2: '', light3: '', light_zigbee: '',
+      wled_entity: '', wled_name: 'WLED',
       light_all_on: '', light_all_off: '', light_adaptive: '',
       /* ── SYSTEM view ── (ESP/inverter pre-filled; server stats slots) */
       sys_inv_temp: '', sys_work_mode: '',
@@ -2661,6 +2662,30 @@ class CasaLuna extends HTMLElement {
     </div>`;
   }
 
+  /* Dedicated WLED card: the WLED entity is separate from ordinary room lights and
+     keeps its brightness slider available in the Lighting popup. */
+  _wWled(label, entId) {
+    const has = !!entId;
+    const on = has && String(this._st(entId)).toLowerCase() === 'on';
+    const brightness = has ? this._attr(entId, 'brightness') : null;
+    const pct = brightness != null ? Math.round((+brightness / 255) * 100) : 0;
+    const effect = has ? this._attr(entId, 'effect') : null;
+    return `<div class="pw" style="flex-direction:column;align-items:stretch;gap:12px;padding:14px">
+      <div class="${on ? 'on' : ''}" ${has ? `data-toggle="${esc(entId)}"` : ''}
+        style="min-height:48px;display:flex;align-items:center;gap:12px;padding:0 12px;border-radius:12px;cursor:${has ? 'pointer' : 'default'};background:${on ? 'linear-gradient(135deg,rgba(130,70,255,.36),rgba(0,210,255,.18))' : 'rgba(255,255,255,.04)'};border:1px solid ${on ? 'rgba(167,124,255,.8)' : 'rgba(130,180,220,.22)'};opacity:${has ? '1' : '.4'}">
+        <span style="font-size:22px">◉</span><span style="flex:1;font-size:14px;font-weight:800;color:#eaf4ff">${esc(label || 'WLED')}</span>
+        <span style="font-size:11px;font-weight:800;color:${on ? '#d6b4ff' : '#7fa3c4'}">${on ? 'ON' : 'OFF'}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:12px;color:#bda8ff">BRIGHTNESS</span>
+        <div class="pw-sld" ${has ? `data-bright="${esc(entId)}"` : ''} style="flex:1;${has ? '' : 'opacity:.4'}">
+          <div class="fill" style="width:${pct}%"></div><div class="thumb" style="left:${pct}%"></div></div>
+        <span class="pw-sld-val" data-brightval="${esc(entId)}">${on ? pct + '%' : 'off'}</span>
+      </div>
+      ${effect ? `<div style="font-size:11px;color:#9db8d8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Effect: ${esc(effect)}</div>` : ''}
+    </div>`;
+  }
+
   /* raw numeric parse (no entity lookup) — for attribute min/max/step */
   _numRaw(v) { const n = parseFloat(v); return Number.isFinite(n) ? n : NaN; }
 
@@ -3170,7 +3195,8 @@ class CasaLuna extends HTMLElement {
       c.light_all_off  && this._wButtonTile('🌑', 'All Off', c.light_all_off, 'Off'),
       c.light_adaptive && this._wToggleTile('🔄', 'Adaptive', c.light_adaptive),
     ].filter(Boolean).join('');
-    const out = grp('Lights', lights ? this._wGrid(3, lights) : '') + grp('All Lights', all ? this._wGrid(3, all) : '');
+    const wled = c.wled_entity ? this._wWled(c.wled_name || 'WLED', c.wled_entity) : '';
+    const out = grp('WLED', wled) + grp('Lights', lights ? this._wGrid(3, lights) : '') + grp('All Lights', all ? this._wGrid(3, all) : '');
     return out || '<div class="hint" style="opacity:.6;padding:18px">No lighting entities configured. Add them in the editor → Lighting View.</div>';
   }
 
@@ -5586,6 +5612,10 @@ class CasaLunaEditor extends HTMLElement {
       picker('light2', 'Light 2 (Bedroom)', true), textField('light2_name', 'Light 2 — name', 'Bedroom'),
       picker('light3', 'Light 3 (Kitchen)', true), textField('light3_name', 'Light 3 — name', 'Kitchen'),
       picker('light_zigbee', 'Zigbee Light', true), textField('light_zigbee_name', 'Zigbee Light — name', 'Zigbee Light'),
+      divider(),
+      info('WLED uses its own card with a brightness slider in the Lighting popup.'),
+      picker('wled_entity', 'WLED light', true), textField('wled_name', 'WLED — name', 'WLED'),
+      divider(),
       picker('light_all_on', 'All On (script)', true),
       picker('light_all_off', 'All Off (script)', true),
       picker('light_adaptive', 'Adaptive lighting (switch)', true),

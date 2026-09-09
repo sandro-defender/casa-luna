@@ -85,7 +85,7 @@ Available custom icon names: `gear`, `home`, `bolt`, `plug`, `batt`, `therm`, `s
 
 ## Separate 12V DC system
 
-The entire former inverter area is now a dedicated **12V DC System** card. Configure it in the editor with your separate DC sensors:
+The former inverter area keeps its original two-card visual layout, repurposed as a dedicated **12V DC System**. The right circular indicator shows the 12V power-supply voltage, while the left card shows the separate DC readings. Configure it in the editor with your separate DC sensors:
 
 - `dc12_solar_voltage`
 - `dc12_supply_voltage`

@@ -1725,7 +1725,7 @@ class CasaLuna extends HTMLElement {
     const irShift = IR[0] - irX;
     const irW = IR[2] + irShift;
     const lower = `
-    <div class="box" id="dc12System" style="left:${IB[0]}px;top:${IB[1]}px;width:${IR[0] + IR[2] - IB[0]}px;height:${IB[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35));${c.dc12_enabled === false ? "display:none" : ""}">
+    <div class="box" id="dc12System" style="left:${IB[0]}px;top:${IB[1]}px;width:${IB[2]}px;height:${IB[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35));${c.dc12_enabled === false ? "display:none" : ""}">
       <div class="val" style="position:absolute;left:14px;top:10px;font-size:14px;color:#cce4ff">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
       <div style="position:absolute;left:14px;right:14px;top:38px;display:grid;grid-template-columns:1fr 1fr;gap:8px 12px">
         <div><div style="font-size:9px;color:#ffd24a;letter-spacing:.06em">SOLAR</div><div class="val" id="dc12SolarV" style="font-size:18px;color:#ffd24a">--</div></div>
@@ -1735,7 +1735,7 @@ class CasaLuna extends HTMLElement {
       </div>
       <div id="dc12Power" style="position:absolute;right:14px;bottom:9px;font-size:12px;font-weight:700;color:#d8eeff">--</div>
     </div>
-    <div class="box" style="display:none;left:${irX}px;top:${IR[1]}px;width:${irW}px;height:${IR[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35))">
+    <div class="box" style="left:${irX}px;top:${IR[1]}px;width:${irW}px;height:${IR[3]}px;background:var(--cl-box-bg,rgba(0,0,0,.35))">
       ${!c._show_phase ? `
       <div style="position:absolute;left:10px;top:10px;width:${irShift - 20}px;height:${IR[3] - 20}px;border-radius:10px;
         background:rgba(20,40,70,.5);border:1px solid rgba(150,200,255,.25);padding:9px 11px;box-sizing:border-box;overflow:hidden">
@@ -1763,10 +1763,10 @@ class CasaLuna extends HTMLElement {
           }
           return out;
         })()}
-        <text x="57.5" y="48" font-size="14" fill="#a8cae6" text-anchor="middle">${this._t("INV LOAD")}</text>
+        <text x="57.5" y="48" font-size="14" fill="#a8cae6" text-anchor="middle">12V VOLT</text>
         <text id="donutPct" x="57.5" y="80" font-size="${Number(c.sz_invload)||22}" font-weight="800" fill="#eaf4ff" text-anchor="middle">--%</text>
       </svg>
-      <div class="val" style="position:absolute;left:${14+irShift}px;top:10px;font-size:10px">${esc(c.inverter_name || 'GOODWE')}</div>
+      <div class="val" style="position:absolute;left:${14+irShift}px;top:10px;font-size:10px">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
       <div style="position:absolute;left:${14+irShift}px;bottom:6px;width:162px;display:flex;justify-content:space-between;align-items:baseline;gap:8px">
         <span id="invStatus" style="font-size:11px;color:#a8cae6;white-space:nowrap">--</span>
         <span id="invErr" style="font-size:11px;color:#46e05a;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
@@ -4069,15 +4069,12 @@ class CasaLuna extends HTMLElement {
     this._setTxt('#v_bchg', this._kwhEnt(c.today_batt_chg));
     this._setTxt('#v_bdis', this._kwhEnt(c.batt_dis));
 
-    /* inverter */
-    const invT = this._num(c.inv_temp, NaN);
-    this._setTxt('#invStatus', Number.isFinite(invT) ? `Temp: ${this._decEnt(c.inv_temp)} °C` : 'Operating');
-    const invErrSt = c.inverter_error ? this._st(c.inverter_error) : '';
+    /* Right-hand card keeps the original visual design but now represents the 12V DC system. */
+    this._setTxt('#invStatus', c.dc12_solar_voltage ? `Solar: ${this._decEnt(c.dc12_solar_voltage)} V` : '12V system');
     const errEl = this._q('#invErr');
     if (errEl) {
-      const clean = !invErrSt || /^(0|ok|none|no\s*error|normal|clear|off|nan|unknown|unavailable)$/i.test(invErrSt);
-      errEl.textContent = clean ? '\u2713 No Errors' : `\u26a0 ${this._cap(invErrSt)}`;
-      errEl.style.color = clean ? '#46e05a' : '#ff5040';
+      errEl.textContent = c.dc12_battery_voltage ? `Battery: ${this._decEnt(c.dc12_battery_voltage)} V` : '';
+      errEl.style.color = '#7ce05a';
     }
     /* Separate 12V DC system: intentionally independent from the AC inverter data. */
     const dcVoltage = id => id ? `${this._decEnt(id)} V` : '--';
@@ -4094,9 +4091,10 @@ class CasaLuna extends HTMLElement {
     setRow('#phaseRowV', [phaseVal(c.grid_phase_a_volt), phaseVal(c.grid_phase_b_volt), phaseVal(c.grid_phase_c_volt)]);
     setRow('#invRowP', [phaseKw(c.inv_l1_power), phaseKw(c.inv_l2_power), phaseKw(c.inv_l3_power)]);
     setRow('#invRowV', [phaseVal(c.inv_l1_volt), phaseVal(c.inv_l2_volt), phaseVal(c.inv_l3_volt)]);
-    const loadPct = Math.min(100, Math.max(0, loadW / Math.max(c.inverter_max_power, 1) * 100));
-    const loadCol = loadPct >= c.thresh_load_critical ? '#ff5040' : loadPct >= c.thresh_load_warn ? '#ffaa28' : '#46e05a';
-    /* 6-block gauge: light blocks proportional to load% */
+    const supplyV = this._num(c.dc12_supply_voltage, NaN);
+    const loadPct = Number.isFinite(supplyV) ? Math.min(100, Math.max(0, supplyV / 15 * 100)) : 0;
+    const loadCol = !Number.isFinite(supplyV) ? '#7fa3c4' : supplyV < 11.5 ? '#ff5040' : supplyV < 12 ? '#ffaa28' : '#46e05a';
+    /* 6-block gauge is repurposed as a 0–15V supply-voltage indicator. */
     const litBlocks = Math.round(loadPct / 100 * 6);
     for (let i = 0; i < 6; i++) {
       const blk = this._q(`#donutBlk${i}`);
@@ -4105,7 +4103,7 @@ class CasaLuna extends HTMLElement {
         blk.setAttribute('stroke', loadCol);
       }
     }
-    this._setTxt('#donutPct', `${Math.round(loadPct)}%`);
+    this._setTxt('#donutPct', Number.isFinite(supplyV) ? `${this._decEnt(c.dc12_supply_voltage)} V` : '--');
 
     /* inverter row tiles */
     /* capacity compute — khan logic: battery_cap_unit picks Ah or kWh field.

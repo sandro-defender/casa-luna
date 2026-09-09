@@ -2644,25 +2644,20 @@ class CasaLuna extends HTMLElement {
 
 
 
-  /* light control: on/off toggle + brightness slider (light.* uses brightness 0-255 attr) */
+  /* light control: each configured light is a large, direct on/off button. */
   _wLight(label, entId) {
     const has = !!entId;
     const st = has ? this._st(entId) : null;
     const on = String(st).toLowerCase() === 'on';
     const br = has && on ? this._attr(entId, 'brightness') : null;
     const pct = br != null ? Math.round((+br / 255) * 100) : 0;
-    const isLight = has && entId.startsWith('light.');
-    return `<div class="pw" style="flex-direction:column;align-items:stretch;gap:10px">
-      <div style="display:flex;align-items:center;gap:12px">
-        <span class="pw-ic">💡</span><span class="pw-lbl">${esc(label)}</span>
-        <div class="pw-tgl ${on ? 'on' : ''}" ${has ? `data-toggle="${esc(entId)}"` : 'style="opacity:.4"'}><div class="kn"></div></div>
+    return `<div class="pw" style="padding:0;overflow:hidden;min-height:72px">
+      <div class="${on ? 'on' : ''}" ${has ? `data-toggle="${esc(entId)}"` : ''}
+        style="width:100%;min-height:72px;display:flex;align-items:center;gap:10px;padding:12px;box-sizing:border-box;cursor:${has ? 'pointer' : 'default'};background:${on ? 'linear-gradient(135deg,rgba(255,194,45,.34),rgba(255,130,20,.16))' : 'rgba(255,255,255,.035)'};border:1px solid ${on ? 'rgba(255,205,75,.7)' : 'rgba(130,180,220,.22)'};border-radius:12px;opacity:${has ? '1' : '.4'}">
+        <span style="font-size:22px;line-height:1">💡</span>
+        <span style="min-width:0;flex:1;font-size:13px;font-weight:700;color:#eaf4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(label)}</span>
+        <span style="font-size:11px;font-weight:800;letter-spacing:.06em;color:${on ? '#ffe38a' : '#7fa3c4'}">${on ? (pct ? pct + '%' : 'ON') : 'OFF'}</span>
       </div>
-      ${isLight ? `<div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:11px;color:#7fa3c4">☀</span>
-        <div class="pw-sld" data-bright="${esc(entId)}" style="flex:1">
-          <div class="fill" style="width:${pct}%"></div><div class="thumb" style="left:${pct}%"></div></div>
-        <span class="pw-sld-val" data-brightval="${esc(entId)}">${on ? pct + '%' : 'off'}</span>
-      </div>` : ''}
     </div>`;
   }
 
@@ -3150,7 +3145,7 @@ class CasaLuna extends HTMLElement {
     /* auto-discover: all light entities (each gets brightness control) */
     if (this._autoOn('lighting')) {
       const lights = this._discover([{ domain: 'light' }]);
-      let rows = lights.length ? lights.map(id => this._wLight(this._name(id), id)).join('') : '<div class="hint" style="opacity:.6">No light entities found.</div>';
+      let rows = lights.length ? this._wGrid(3, lights.map(id => this._wLight(this._name(id), id)).join('')) : '<div class="hint" style="opacity:.6">No light entities found.</div>';
       return this._wHead('Lights (auto)')
         + rows
         + this._wHead('All Lights')
@@ -3175,7 +3170,7 @@ class CasaLuna extends HTMLElement {
       c.light_all_off  && this._wButtonTile('🌑', 'All Off', c.light_all_off, 'Off'),
       c.light_adaptive && this._wToggleTile('🔄', 'Adaptive', c.light_adaptive),
     ].filter(Boolean).join('');
-    const out = grp('Lights', lights) + grp('All Lights', all ? this._wGrid(3, all) : '');
+    const out = grp('Lights', lights ? this._wGrid(3, lights) : '') + grp('All Lights', all ? this._wGrid(3, all) : '');
     return out || '<div class="hint" style="opacity:.6;padding:18px">No lighting entities configured. Add them in the editor → Lighting View.</div>';
   }
 

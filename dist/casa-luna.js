@@ -602,7 +602,7 @@ const glowShadow = g => `inset 0 1px 0 rgba(120,210,255,.28),inset 0 -1px 0 rgba
    instead of every call site re-coercing defensively. Coerced once in setConfig(). */
 const NUMERIC_CONFIG_KEYS = [
   'battery_full_ah', 'battery_full_wh',
-  'pv_max_power', 'grid_max_power', 'dc12_max_current', 'lower_section_offset', 'charger_battery_capacity_wh',
+  'pv_min_power', 'pv_max_power', 'grid_max_power', 'dc12_max_current', 'lower_section_offset', 'charger_battery_capacity_wh',
   'thresh_temp_warn', 'thresh_temp_critical', 'thresh_cell_v_low', 'thresh_cell_v_critical', 'thresh_cell_v_high',
   'thresh_soc_low', 'thresh_soc_critical', 'thresh_load_warn', 'thresh_load_critical',
   'thresh_endurance_low', 'thresh_endurance_crit',
@@ -679,7 +679,7 @@ class CasaLuna extends HTMLElement {
       battery_max_cell: '',
       batt_dis: '',
       battery_full_ah: 0, battery_full_wh: 0, battery_cap_unit: 'ah',
-      pv_max_power: 7500,
+      pv_min_power: 0, pv_max_power: 7500,
       lower_section_offset: 0,
       charger_state: '', charger_current: '', charger_power: '',
       charger_soc: '', charger_eta: '', charger_battery_capacity_wh: 0,
@@ -4317,7 +4317,9 @@ class CasaLuna extends HTMLElement {
       const stSo = this._stateObj(c.charger_state);
       this._setTxt('#evStateVal', stSo ? (this._hass?.formatEntityState?.(stSo) ?? this._cap(stSo.state)) : '--');
     }
-    this._fillBar('pv', pvW / Math.max(c.pv_max_power, 1), '#43ea13', 10);
+    const pvMin = Math.max(0, Number(c.pv_min_power) || 0);
+    const pvMax = Math.max(pvMin + 1, Number(c.pv_max_power) || 1);
+    this._fillBar('pv', Math.max(0, pvW - pvMin) / (pvMax - pvMin), '#43ea13', 10);
     const gridW = this._watts(c.grid_active_power, NaN);
     this._fillBar('pwr', Number.isFinite(gridW) ? Math.abs(gridW) / Math.max(c.grid_max_power || 1, 1) : 0, '#0a8aea', 10);
     this._setTxt('#pwrPct', Number.isFinite(gridW) ? this._powerStr(gridW) : '--');
@@ -5339,7 +5341,14 @@ class CasaLunaEditor extends HTMLElement {
       const sel = document.createElement('ha-selector');
       sel.hass = this._hass; sel.selector = { entity: {} }; sel.value = cfg[key] || '';
       sel.addEventListener('value-changed', e => { e.stopPropagation(); this._set(key, e.detail.value || ''); });
-      wrap.appendChild(lbl); wrap.appendChild(sel);
+      const pickerRow = document.createElement('div'); pickerRow.style.cssText = 'display:flex;align-items:center;gap:8px';
+      pickerRow.appendChild(sel);
+      const clear = document.createElement('button'); clear.type = 'button'; clear.textContent = 'Clear'; clear.disabled = !cur;
+      clear.setAttribute('aria-label', `Clear ${label}`);
+      clear.style.cssText = 'flex:0 0 auto;padding:8px 10px;border:1px solid var(--divider-color,rgba(0,0,0,.25));border-radius:7px;background:transparent;color:var(--primary-text-color);cursor:pointer';
+      clear.addEventListener('click', e => { e.stopPropagation(); this._set(key, ''); this._render(); });
+      pickerRow.appendChild(clear);
+      wrap.appendChild(lbl); wrap.appendChild(pickerRow);
       return wrap;
     };
 
@@ -5609,8 +5618,6 @@ class CasaLunaEditor extends HTMLElement {
       divider(),
       capGroup('Battery Capacity', 'battery_cap_unit', 'battery_full_ah', 'battery_full_wh'),
       divider(),
-      numberField('pv_max_power', 'PV Array Max Power', 0, 30000, 100, 'W'),
-      divider(),
       numberField('lower_section_offset', 'Flow diagram vertical offset', -80, 80, 1, 'SVG units (− = up)'),
       divider(),
       textField('background_path', 'Background Image Path', '/local/community/casa-luna/sky'),
@@ -5636,6 +5643,12 @@ class CasaLunaEditor extends HTMLElement {
     ]));
 
     shell.appendChild(section('solar', '🔆', 'Solar', [
+      info('PV display scale for the dashboard production bar.'),
+      grid2(
+        numberField('pv_min_power', 'PV Array Min Power', 0, 30000, 10, 'W'),
+        numberField('pv_max_power', 'PV Array Max Power', 1, 30000, 100, 'W'),
+      ),
+      divider(),
       eg('pv1_power', 'SOLAR POWER'),
       eg('pv_total_power', 'PV TOTAL POWER'),
       eg('pv1_voltage', 'SOLAR VOLTAGE'),

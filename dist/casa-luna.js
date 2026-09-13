@@ -1919,8 +1919,8 @@ class CasaLuna extends HTMLElement {
           }
           return out;
         })()}
-        <text x="57.5" y="48" font-size="14" fill="#a8cae6" text-anchor="middle">${esc(c.label_dc12_current_indicator || 'DC CURRENT')}</text>
-        <text id="donutPct" x="57.5" y="80" font-size="${Number(c.sz_invload)||22}" font-weight="800" fill="#eaf4ff" text-anchor="middle">--%</text>
+    <text x="57.5" y="43" font-size="10" fill="#a8cae6" text-anchor="middle">${esc(c.label_dc12_current_indicator || 'DC CURRENT')}</text>
+    <text id="donutPct" x="57.5" y="66" font-size="${Number(c.sz_invload)||22}" font-weight="800" fill="#eaf4ff" text-anchor="middle">--</text>
       </svg>
       <div class="val" style="position:absolute;left:${14+irShift}px;top:10px;font-size:10px">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
       <div style="position:absolute;left:${14+irShift}px;bottom:6px;width:162px;display:flex;justify-content:space-between;align-items:baseline;gap:8px">

@@ -50,7 +50,10 @@ $required = @(
   '_resolveCameraSnapshot',
   '_startCameraSnapshots',
   '_go2rtcStreamUrl',
-  "rawState === 'unavailable'"
+  "rawState === 'unavailable'",
+  'auto_discover_security_include',
+  'auto_discover_security_exclude',
+  'entityListPicker'
 )
 
 foreach ($marker in $required) {

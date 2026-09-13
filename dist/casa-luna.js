@@ -724,6 +724,7 @@ class CasaLuna extends HTMLElement {
       /* per-view auto-discovery toggles (OFF = manual entity picks; ON = scan hass by device_class) */
       auto_discover_security: false, auto_discover_climate: false,
       auto_discover_lighting: false, auto_discover_automation: false,
+      auto_discover_security_include: [], auto_discover_security_exclude: [],
       events_entities: [],
       /* ── phase monitor / optional AC-load inputs ── */
       label_phase_title: 'GRID PHASES',
@@ -3092,8 +3093,10 @@ class CasaLuna extends HTMLElement {
   /* ═══════════════ AUTO-DISCOVERY ═══════════════
      Scan hass.states for entities matching domain + device_class rules.
      Returns sorted entity ids. Used when a view's auto-discover toggle is ON. */
-  _discover(rules) {
+  _discover(rules, view = '') {
     const hass = this._hass; if (!hass) return [];
+    const excluded = new Set(Array.isArray(this.config?.[`auto_discover_${view}_exclude`])
+      ? this.config[`auto_discover_${view}_exclude`] : []);
     const out = [];
     for (const id in hass.states) {
       const entity = hass.states[id];
@@ -3101,6 +3104,7 @@ class CasaLuna extends HTMLElement {
       /* Auto-discovery is for useful, live devices. Keep an unavailable or state-less
          integration out of the panel; manually configured entities still remain visible. */
       if (!rawState || rawState === 'unknown' || rawState === 'unavailable') continue;
+      if (excluded.has(id)) continue;
       const dom = id.split('.')[0];
       const dc = entity.attributes?.device_class;
       for (const r of rules) {
@@ -3117,8 +3121,8 @@ class CasaLuna extends HTMLElement {
   }
 
   /* build a tile grid (N cols) of metric tiles from a discovered entity list */
-  _discoverTiles(rules, cols = 4, iconFn = null) {
-    const ids = this._discover(rules);
+  _discoverTiles(rules, cols = 4, iconFn = null, view = '') {
+    const ids = this._discover(rules, view);
     if (!ids.length) return `<div class="hint" style="opacity:.6">No matching entities found.</div>`;
     return this._wGrid(cols, ids.map(id => {
       const icon = iconFn ? iconFn(id) : '•';
@@ -3160,14 +3164,35 @@ class CasaLuna extends HTMLElement {
     const c = this.config;
     /* auto-discover: all cameras + safety binary_sensors */
     if (this._autoOn('security')) {
-      const cameraIds = this._discover([{ domain: 'camera' }]);
+      const safetyRules = [{ domain: 'binary_sensor', device_class: ['gas', 'smoke', 'carbon_monoxide', 'safety'] }];
+      const motionRules = [{ domain: 'binary_sensor', device_class: ['motion', 'occupancy', 'moving'] }];
+      const doorRules = [{ domain: 'binary_sensor', device_class: ['door', 'window', 'opening', 'garage_door'] }];
+      const cameraIds = this._discover([{ domain: 'camera' }], 'security');
+      const discovered = new Set([
+        ...cameraIds,
+        ...this._discover(safetyRules, 'security'),
+        ...this._discover(motionRules, 'security'),
+        ...this._discover(doorRules, 'security'),
+      ]);
+      const excluded = new Set(Array.isArray(c.auto_discover_security_exclude) ? c.auto_discover_security_exclude : []);
+      const added = (Array.isArray(c.auto_discover_security_include) ? c.auto_discover_security_include : [])
+        .filter(id => !discovered.has(id) && !excluded.has(id))
+        .filter(id => {
+          const state = String(this._st(id) ?? '').trim().toLowerCase();
+          return state && state !== 'unknown' && state !== 'unavailable';
+        });
+      const addedCameras = added.filter(id => id.startsWith('camera.'));
+      const addedEntities = added.filter(id => !id.startsWith('camera.'));
       return this._wHead('Cameras')
         + this._wCameraEntities(cameraIds)
         + this._wHead('Safety Sensors (auto)')
-        + this._discoverTiles([{ domain: 'binary_sensor', device_class: ['gas', 'smoke', 'carbon_monoxide', 'safety'] }], 4, () => '🔥')
+        + this._discoverTiles(safetyRules, 4, () => '🔥', 'security')
         + this._wHead('Motion & Doors (auto)')
-        + this._discoverTiles([{ domain: 'binary_sensor', device_class: ['motion', 'occupancy', 'moving'] }, { domain: 'binary_sensor', device_class: ['door', 'window', 'opening', 'garage_door'] }], 4,
-          id => { const dc = this._attr(id, 'device_class'); return ['door', 'window', 'opening', 'garage_door'].includes(dc) ? '🚪' : '🚶'; });
+        + this._discoverTiles([...motionRules, ...doorRules], 4,
+          id => { const dc = this._attr(id, 'device_class'); return ['door', 'window', 'opening', 'garage_door'].includes(dc) ? '🚪' : '🚶'; }, 'security')
+        + (addedCameras.length ? this._wHead('Added Cameras') + this._wCameraEntities(addedCameras) : '')
+        + (addedEntities.length ? this._wHead('Added Entities') + this._wGrid(4, addedEntities.map(id =>
+          this._wTile('🛡️', this._name(id), id, this._attr(id, 'unit_of_measurement') || '')).join('')) : '')
     }
     const grp = (head, body) => body ? this._wHead(head) + body : '';
     const safety = [
@@ -5376,6 +5401,32 @@ class CasaLunaEditor extends HTMLElement {
       return wrap;
     };
 
+    /* Entity list with an HA picker and a visible remove button for each choice. */
+    const entityListPicker = (key, label, hint = '') => {
+      const wrap = document.createElement('div'); wrap.className = 'fld';
+      const lbl = document.createElement('label'); lbl.textContent = label;
+      wrap.appendChild(lbl);
+      if (hint) { const help = document.createElement('div'); help.style.cssText = 'margin:-2px 0 8px;font-size:.72rem;line-height:1.35;color:var(--secondary-text-color)'; help.textContent = hint; wrap.appendChild(help); }
+      const values = Array.isArray(cfg[key]) ? cfg[key] : [];
+      values.forEach(id => {
+        const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:8px;margin:5px 0;padding:6px 8px;border-radius:6px;background:var(--secondary-background-color,rgba(0,0,0,.05))';
+        const name = document.createElement('span'); name.style.cssText = 'min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.78rem'; name.textContent = this._hass?.states?.[id]?.attributes?.friendly_name || id;
+        const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Remove'; remove.setAttribute('aria-label', `Remove ${id}`);
+        remove.style.cssText = 'flex:0 0 auto;padding:6px 9px;border:1px solid var(--divider-color,rgba(0,0,0,.25));border-radius:6px;background:transparent;color:var(--primary-text-color);cursor:pointer';
+        remove.addEventListener('click', () => { this._set(key, values.filter(value => value !== id)); this._render(); });
+        row.appendChild(name); row.appendChild(remove); wrap.appendChild(row);
+      });
+      const addLabel = document.createElement('div'); addLabel.className = 'lblrow'; addLabel.style.margin = '10px 2px 3px'; addLabel.textContent = 'Add entity';
+      const selector = document.createElement('ha-selector'); selector.hass = this._hass; selector.selector = { entity: {} }; selector.value = '';
+      selector.addEventListener('value-changed', event => {
+        event.stopPropagation();
+        const id = event.detail.value || '';
+        if (id && !values.includes(id)) { this._set(key, [...values, id]); this._render(); }
+      });
+      wrap.appendChild(addLabel); wrap.appendChild(selector);
+      return wrap;
+    };
+
     const grid2 = (...els) => { const g = document.createElement('div'); g.className = 'grid2'; els.forEach(e => { if (e) g.appendChild(e); }); return g; };
     const info = txt => { const d = document.createElement('div'); d.className = 'info'; d.textContent = txt; return d; };
     const divider = () => { const d = document.createElement('div'); d.className = 'divider'; return d; };
@@ -5870,6 +5921,10 @@ class CasaLunaEditor extends HTMLElement {
 
     shell.appendChild(section('nav_security', '🛡️', 'Security View', [
       switchRow('auto_discover_security', 'Auto-discover', 'Show all cameras + gas/smoke/motion/door binary_sensors automatically.'),
+      info('When Auto-discover is enabled, use these lists to add a live entity that does not match the normal rules, or hide an unwanted discovered entity.'),
+      entityListPicker('auto_discover_security_include', 'Auto-discovery — add entities', 'These appear in the Added section. Only entities with a live state are shown.'),
+      entityListPicker('auto_discover_security_exclude', 'Auto-discovery — hide entities', 'Hidden entities stay excluded while Auto-discover is enabled.'),
+      divider(),
       info('Pick + name each. Empty slots are hidden.'),
       picker('sec_flame', 'Flame', true), textField('sec_flame_name', 'Flame — name', 'Flame'),
       picker('sec_gas_analog', 'Gas (analog)', true), textField('sec_gas_analog_name', 'Gas — name', 'Gas'),

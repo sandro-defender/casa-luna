@@ -49,7 +49,8 @@ $required = @(
   'sec_cam4_go2rtc',
   '_resolveCameraSnapshot',
   '_startCameraSnapshots',
-  '_go2rtcStreamUrl'
+  '_go2rtcStreamUrl',
+  "rawState === 'unavailable'"
 )
 
 foreach ($marker in $required) {

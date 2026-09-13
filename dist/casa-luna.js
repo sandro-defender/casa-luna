@@ -3096,8 +3096,13 @@ class CasaLuna extends HTMLElement {
     const hass = this._hass; if (!hass) return [];
     const out = [];
     for (const id in hass.states) {
+      const entity = hass.states[id];
+      const rawState = String(entity?.state ?? '').trim().toLowerCase();
+      /* Auto-discovery is for useful, live devices. Keep an unavailable or state-less
+         integration out of the panel; manually configured entities still remain visible. */
+      if (!rawState || rawState === 'unknown' || rawState === 'unavailable') continue;
       const dom = id.split('.')[0];
-      const dc = hass.states[id].attributes?.device_class;
+      const dc = entity.attributes?.device_class;
       for (const r of rules) {
         if (r.domain && dom !== r.domain) continue;
         if (r.device_class) {

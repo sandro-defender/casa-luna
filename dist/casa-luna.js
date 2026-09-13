@@ -2740,6 +2740,16 @@ class CasaLuna extends HTMLElement {
   }
 
   /* Security camera cards use HA camera entities. Selecting a card opens go2rtc. */
+  _cameraEntry(entityId) {
+    const c = this.config || {};
+    for (let n = 1; n <= 4; n++) {
+      if (c[`sec_cam${n}`] === entityId) {
+        return { entityId, go2rtcName: c[`sec_cam${n}_go2rtc`] || '' };
+      }
+    }
+    return { entityId, go2rtcName: '' };
+  }
+
   _wCameraEntities(entries) {
     const seen = new Set();
     const cameras = entries.filter(Boolean).map(entry => typeof entry === 'string'
@@ -3174,6 +3184,7 @@ class CasaLuna extends HTMLElement {
       const motionRules = [{ domain: 'binary_sensor', device_class: ['motion', 'occupancy', 'moving'] }];
       const doorRules = [{ domain: 'binary_sensor', device_class: ['door', 'window', 'opening', 'garage_door'] }];
       const cameraIds = this._discover([{ domain: 'camera' }], 'security');
+      const cameraEntries = cameraIds.map(id => this._cameraEntry(id));
       const discovered = new Set([
         ...cameraIds,
         ...this._discover(safetyRules, 'security'),
@@ -3190,13 +3201,13 @@ class CasaLuna extends HTMLElement {
       const addedCameras = added.filter(id => id.startsWith('camera.'));
       const addedEntities = added.filter(id => !id.startsWith('camera.'));
       return this._wHead('Cameras')
-        + this._wCameraEntities(cameraIds)
+        + this._wCameraEntities(cameraEntries)
         + this._wHead('Safety Sensors (auto)')
         + this._discoverTiles(safetyRules, 4, () => '🔥', 'security')
         + this._wHead('Motion & Doors (auto)')
         + this._discoverTiles([...motionRules, ...doorRules], 4,
           id => { const dc = this._attr(id, 'device_class'); return ['door', 'window', 'opening', 'garage_door'].includes(dc) ? '🚪' : '🚶'; }, 'security')
-        + (addedCameras.length ? this._wHead('Added Cameras') + this._wCameraEntities(addedCameras) : '')
+        + (addedCameras.length ? this._wHead('Added Cameras') + this._wCameraEntities(addedCameras.map(id => this._cameraEntry(id))) : '')
         + (addedEntities.length ? this._wHead('Added Entities') + this._wGrid(4, addedEntities.map(id =>
           this._wTile('🛡️', this._name(id), id, this._attr(id, 'unit_of_measurement') || '')).join('')) : '')
     }
@@ -3220,10 +3231,7 @@ class CasaLuna extends HTMLElement {
       ['🏠', 'Disarm', c.sec_scene_disarm || ''],
       ['🌙', 'Night', c.sec_scene_night || ''],
     ].filter(s => s[2]);
-    const cameras = [1, 2, 3, 4].map(n => ({
-      entityId: c[`sec_cam${n}`],
-      go2rtcName: c[`sec_cam${n}_go2rtc`],
-    }));
+    const cameras = [1, 2, 3, 4].map(n => this._cameraEntry(c[`sec_cam${n}`]));
     return this._wHead('Cameras')
       + this._wCameraEntities(cameras)
       + grp('Safety Sensors', safety ? this._wGrid(4, safety) : '')

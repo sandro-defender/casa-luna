@@ -696,12 +696,14 @@ class CasaLuna extends HTMLElement {
       grid_phase_a_volt: '', grid_phase_b_volt: '', grid_phase_c_volt: '',
       grid_phase_a_current: '', grid_phase_b_current: '', grid_phase_c_current: '',
       grid_phase_a_freq: '', grid_phase_b_freq: '', grid_phase_c_freq: '',
+      grid_phase_a_name: 'L1', grid_phase_b_name: 'L2', grid_phase_c_name: 'L3',
       invert_battery_power: false, invert_grid_power: true,
       _show_ev: false,
       _show_bars: true, _show_battstats: true, _show_pvtile: true,
       nav_dashboard_enabled: true, nav_energy_enabled: true, nav_plugs_enabled: true,
       nav_battery_enabled: true, nav_climate_enabled: true, nav_security_enabled: true,
       nav_automation_enabled: true, nav_lighting_enabled: true, nav_system_enabled: true,
+      nav_order: ['dashboard', 'energy', 'plugs', 'battery', 'climate', 'security', 'automation', 'lighting', 'system', 'custom1', 'custom2'],
       nav_custom1_enabled: false, nav_custom1_title: 'CUSTOM 1', nav_custom1_subtitle: 'Custom entities', nav_custom1_icon: 'gear', view_custom1_entities: [],
       nav_custom2_enabled: false, nav_custom2_title: 'CUSTOM 2', nav_custom2_subtitle: 'Custom entities', nav_custom2_icon: 'gear', view_custom2_entities: [],
       _extra_tile_1_enabled: true,  _extra_tile_1_label: 'Heat Pump',   _extra_tile_1_entity: '', _extra_tile_1_icon: 'heat',
@@ -1308,7 +1310,10 @@ class CasaLuna extends HTMLElement {
       c[`nav_custom${n}_subtitle`] || 'Custom entities',
       ICONS[c[`nav_custom${n}_icon`]] ? c[`nav_custom${n}_icon`] : 'gear',
     ]);
-    return [...standard, ...custom];
+    const fallback = [...NAV_VIEWS.map(([key]) => key), 'custom1', 'custom2'];
+    const requested = Array.isArray(c.nav_order) ? c.nav_order : [];
+    const order = [...requested.filter(key => fallback.includes(key)), ...fallback.filter(key => !requested.includes(key))];
+    return [...standard, ...custom].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
   }
 
   /* ══════════════ BUILD (once per config) ══════════════ */
@@ -1882,9 +1887,9 @@ class CasaLuna extends HTMLElement {
           <div class="flipbtn" id="phaseFlipBtn" style="right:10px;top:10px">↻</div>
           <div style="position:absolute;left:12px;right:12px;top:37px;display:grid;grid-template-columns:22px repeat(4,minmax(0,1fr));grid-template-rows:13px repeat(3,18px);column-gap:3px;row-gap:2px;align-items:center;text-align:center">
             <span></span><span style="font-size:8px;color:#91a5c2;letter-spacing:.08em">V</span><span style="font-size:8px;color:#91a5c2;letter-spacing:.08em">W</span><span style="font-size:8px;color:#91a5c2;letter-spacing:.08em">A</span><span style="font-size:8px;color:#91a5c2;letter-spacing:.08em">FRQ</span>
-            <span style="font-size:9px;color:#7fd4ff;font-weight:700">L1</span><span class="val" id="phaseL1V" style="font-size:10px;color:#a8cae6">--</span><span class="val" id="phaseL1W" style="font-size:10px;color:#eaf4ff">--</span><span class="val" id="phaseL1A" style="font-size:10px;color:#ffd24a">--</span><span class="val" id="phaseL1F" style="font-size:10px;color:#8fd6ff">--</span>
-            <span style="font-size:9px;color:#7fd4ff;font-weight:700">L2</span><span class="val" id="phaseL2V" style="font-size:10px;color:#a8cae6">--</span><span class="val" id="phaseL2W" style="font-size:10px;color:#eaf4ff">--</span><span class="val" id="phaseL2A" style="font-size:10px;color:#ffd24a">--</span><span class="val" id="phaseL2F" style="font-size:10px;color:#8fd6ff">--</span>
-            <span style="font-size:9px;color:#7fd4ff;font-weight:700">L3</span><span class="val" id="phaseL3V" style="font-size:10px;color:#a8cae6">--</span><span class="val" id="phaseL3W" style="font-size:10px;color:#eaf4ff">--</span><span class="val" id="phaseL3A" style="font-size:10px;color:#ffd24a">--</span><span class="val" id="phaseL3F" style="font-size:10px;color:#8fd6ff">--</span>
+            <span style="font-size:9px;color:#7fd4ff;font-weight:700">${esc(c.grid_phase_a_name || 'L1')}</span><span class="val" id="phaseL1V" style="font-size:10px;color:#a8cae6">--</span><span class="val" id="phaseL1W" style="font-size:10px;color:#eaf4ff">--</span><span class="val" id="phaseL1A" style="font-size:10px;color:#ffd24a">--</span><span class="val" id="phaseL1F" style="font-size:10px;color:#8fd6ff">--</span>
+            <span style="font-size:9px;color:#7fd4ff;font-weight:700">${esc(c.grid_phase_b_name || 'L2')}</span><span class="val" id="phaseL2V" style="font-size:10px;color:#a8cae6">--</span><span class="val" id="phaseL2W" style="font-size:10px;color:#eaf4ff">--</span><span class="val" id="phaseL2A" style="font-size:10px;color:#ffd24a">--</span><span class="val" id="phaseL2F" style="font-size:10px;color:#8fd6ff">--</span>
+            <span style="font-size:9px;color:#7fd4ff;font-weight:700">${esc(c.grid_phase_c_name || 'L3')}</span><span class="val" id="phaseL3V" style="font-size:10px;color:#a8cae6">--</span><span class="val" id="phaseL3W" style="font-size:10px;color:#eaf4ff">--</span><span class="val" id="phaseL3A" style="font-size:10px;color:#ffd24a">--</span><span class="val" id="phaseL3F" style="font-size:10px;color:#8fd6ff">--</span>
           </div>
         </div>
         <div class="flipface" style="position:absolute;inset:0;transform:rotateY(180deg);padding:0">
@@ -5438,7 +5443,7 @@ class CasaLunaEditor extends HTMLElement {
     };
 
     /* Entity list with an HA picker and a visible remove button for each choice. */
-    const entityListPicker = (key, label, hint = '') => {
+    const entityListPicker = (key, label, hint = '', selectorConfig = { entity: {} }) => {
       const wrap = document.createElement('div'); wrap.className = 'fld';
       const lbl = document.createElement('label'); lbl.textContent = label;
       wrap.appendChild(lbl);
@@ -5453,13 +5458,49 @@ class CasaLunaEditor extends HTMLElement {
         row.appendChild(name); row.appendChild(remove); wrap.appendChild(row);
       });
       const addLabel = document.createElement('div'); addLabel.className = 'lblrow'; addLabel.style.margin = '10px 2px 3px'; addLabel.textContent = 'Add entity';
-      const selector = document.createElement('ha-selector'); selector.hass = this._hass; selector.selector = { entity: {} }; selector.value = '';
+      const selector = document.createElement('ha-selector'); selector.hass = this._hass; selector.selector = selectorConfig; selector.value = '';
       selector.addEventListener('value-changed', event => {
         event.stopPropagation();
         const id = event.detail.value || '';
         if (id && !values.includes(id)) { this._set(key, [...values, id]); this._render(); }
       });
       wrap.appendChild(addLabel); wrap.appendChild(selector);
+      return wrap;
+    };
+
+    /* Navigation order is explicit, keyboard-friendly, and stored with the card config.
+       Disabled cards retain their place, so re-enabling one does not reshuffle the rail. */
+    const navOrderPicker = () => {
+      const wrap = document.createElement('div'); wrap.className = 'fld';
+      const label = document.createElement('label'); label.textContent = 'Navigation order';
+      const help = document.createElement('div'); help.style.cssText = 'margin:-2px 0 8px;font-size:.72rem;line-height:1.35;color:var(--secondary-text-color)';
+      help.textContent = 'Use Move up and Move down to set the order of cards in the left navigation rail.';
+      wrap.append(label, help);
+      const entries = [
+        ...NAV_VIEWS.map(([key, title]) => [key, title]),
+        ['custom1', 'Custom Card 1'], ['custom2', 'Custom Card 2'],
+      ];
+      const keys = entries.map(([key]) => key);
+      const saved = Array.isArray(cfg.nav_order) ? cfg.nav_order : [];
+      const order = [...saved.filter(key => keys.includes(key)), ...keys.filter(key => !saved.includes(key))];
+      order.forEach((key, index) => {
+        const [, title] = entries.find(([entryKey]) => entryKey === key);
+        const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:7px;margin:5px 0;padding:6px 8px;border-radius:6px;background:var(--secondary-background-color,rgba(0,0,0,.05))';
+        const name = document.createElement('span'); name.style.cssText = 'min-width:0;flex:1;font-size:.78rem'; name.textContent = title;
+        const move = (direction, text) => {
+          const button = document.createElement('button'); button.type = 'button'; button.textContent = text;
+          button.setAttribute('aria-label', `Move ${title} ${direction < 0 ? 'up' : 'down'}`);
+          button.disabled = direction < 0 ? index === 0 : index === order.length - 1;
+          button.style.cssText = 'flex:0 0 auto;padding:6px 8px;border:1px solid var(--divider-color,rgba(0,0,0,.25));border-radius:6px;background:transparent;color:var(--primary-text-color);cursor:pointer';
+          button.addEventListener('click', () => {
+            const next = order.slice(); const target = index + direction;
+            [next[index], next[target]] = [next[target], next[index]];
+            this._set('nav_order', next); this._render();
+          });
+          return button;
+        };
+        row.append(name, move(-1, 'Move up'), move(1, 'Move down')); wrap.appendChild(row);
+      });
       return wrap;
     };
 
@@ -5707,6 +5748,9 @@ class CasaLunaEditor extends HTMLElement {
     shell.appendChild(section('phaseflip', '🔄', 'AC 3-Phase Monitor', [
       info('The front is a 3-row L1–L3 grid with V, W, A, and frequency columns. Rotate it to see the configured 12V solar, supply, battery, and current readings.'),
       textField('label_phase_title', 'Grid side title', 'GRID PHASES'),
+      textField('grid_phase_a_name', 'Grid row 1 name', 'L1'),
+      textField('grid_phase_b_name', 'Grid row 2 name', 'L2'),
+      textField('grid_phase_c_name', 'Grid row 3 name', 'L3'),
       eg('grid_phase_a', 'PHASE L1'),
       eg('grid_phase_a_volt', 'L1 VOLT'),
       eg('grid_phase_a_current', 'L1 CURRENT'),
@@ -5891,6 +5935,8 @@ class CasaLunaEditor extends HTMLElement {
 
     shell.appendChild(section('nav_controls', '☰', 'Left Navigation', [
       info('Choose which cards appear in the left navigation rail. The visible cards automatically re-space to fit.'),
+      navOrderPicker(),
+      divider(),
       switchRow('nav_dashboard_enabled', 'Dashboard', 'Show the main dashboard card', true),
       switchRow('nav_energy_enabled', 'Energy', 'Show the Energy card', true),
       switchRow('nav_plugs_enabled', 'Smart Plugs', 'Show the Smart Plugs card', true),
@@ -5968,9 +6014,9 @@ class CasaLunaEditor extends HTMLElement {
 
     shell.appendChild(section('nav_security', '🛡️', 'Security View', [
       switchRow('auto_discover_security', 'Auto-discover', 'Show all cameras + gas/smoke/motion/door binary_sensors automatically.'),
-      info('When Auto-discover is enabled, use these lists to add a live entity that does not match the normal rules, or hide an unwanted discovered entity.'),
-      entityListPicker('auto_discover_security_include', 'Auto-discovery — add entities', 'These appear in the Added section. Only entities with a live state are shown.'),
-      entityListPicker('auto_discover_security_exclude', 'Auto-discovery — hide entities', 'Hidden entities stay excluded while Auto-discover is enabled.'),
+      info('When Auto-discover is enabled, include additional live security entities or hide specific discovered entities. The pickers are limited to security-relevant Home Assistant domains.'),
+      entityListPicker('auto_discover_security_include', 'Auto-discovery — include more entities', 'Included live entities appear in the Added section.', { entity: { filter: [{ domain: 'camera' }, { domain: 'binary_sensor' }, { domain: 'lock' }, { domain: 'alarm_control_panel' }, { domain: 'sensor' }] } }),
+      entityListPicker('auto_discover_security_exclude', 'Auto-discovery — hide entities', 'Hide a camera or binary sensor that Auto-discovery found.', { entity: { filter: [{ domain: 'camera' }, { domain: 'binary_sensor' }] } }),
       divider(),
       info('Pick + name each. Empty slots are hidden.'),
       picker('sec_flame', 'Flame', true), textField('sec_flame_name', 'Flame — name', 'Flame'),

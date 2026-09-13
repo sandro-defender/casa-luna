@@ -694,6 +694,8 @@ class CasaLuna extends HTMLElement {
       grid_voltage: '',
       _show_phase: true, grid_phase_a: '', grid_phase_b: '', grid_phase_c: '',
       grid_phase_a_volt: '', grid_phase_b_volt: '', grid_phase_c_volt: '',
+      grid_phase_a_current: '', grid_phase_b_current: '', grid_phase_c_current: '',
+      grid_phase_a_freq: '', grid_phase_b_freq: '', grid_phase_c_freq: '',
       invert_battery_power: false, invert_grid_power: true,
       _show_ev: false,
       _show_bars: true, _show_battstats: true, _show_pvtile: true,
@@ -887,7 +889,9 @@ class CasaLuna extends HTMLElement {
       'weather_temp_entity', 'weather_wind_entity', 'weather_dir_entity', 'pv1_voltage',
       'battery_pack1_voltage', 'battery_pack2_voltage', 'battery_pack3_voltage', 'grid_import_today',
       'grid_voltage', 'grid_phase_a', 'grid_phase_b', 'grid_phase_c', 'grid_phase_a_volt',
-      'grid_phase_b_volt', 'grid_phase_c_volt', 'inv_l1_power', 'inv_l2_power', 'inv_l3_power',
+      'grid_phase_b_volt', 'grid_phase_c_volt', 'grid_phase_a_current', 'grid_phase_b_current',
+      'grid_phase_c_current', 'grid_phase_a_freq', 'grid_phase_b_freq', 'grid_phase_c_freq',
+      'inv_l1_power', 'inv_l2_power', 'inv_l3_power',
       'inverter_output_power', 'inv_l1_volt', 'inv_l2_volt', 'inv_l3_volt',
       'dc12_solar_voltage', 'dc12_supply_voltage', 'dc12_battery_voltage', 'dc12_current', 'dc12_power',
     ]);
@@ -1875,10 +1879,12 @@ class CasaLuna extends HTMLElement {
         <div class="flipface" style="position:absolute;inset:0;padding:0">
           <div class="val" style="position:absolute;left:14px;top:10px;font-size:15px">${esc(c.label_phase_title || this._t('GRID PHASES'))}</div>
           <div class="flipbtn" id="phaseFlipBtn" style="right:10px;top:10px">↻</div>
-          <div style="position:absolute;left:14px;top:42px;font-size:10px;color:#a8cae6;letter-spacing:.04em">PWR<br><span style="font-size:8px;opacity:.7">kW</span></div>
-          <div id="phaseRowP" style="position:absolute;left:54px;right:12px;top:40px;display:flex;gap:6px;justify-content:space-between;font-size:15px;font-weight:700;color:#eaf4ff"></div>
-          <div style="position:absolute;left:14px;top:74px;font-size:10px;color:#a8cae6;letter-spacing:.04em">VOLT<br><span style="font-size:8px;opacity:.7">V</span></div>
-          <div id="phaseRowV" style="position:absolute;left:54px;right:12px;top:72px;display:flex;gap:6px;justify-content:space-between;font-size:15px;font-weight:700;color:#a8cae6"></div>
+          <div style="position:absolute;left:12px;right:12px;top:37px;display:grid;grid-template-columns:22px repeat(4,minmax(0,1fr));grid-template-rows:13px repeat(3,18px);column-gap:3px;row-gap:2px;align-items:center;text-align:center">
+            <span></span><span style="font-size:8px;color:#91a5c2;letter-spacing:.08em">V</span><span style="font-size:8px;color:#91a5c2;letter-spacing:.08em">W</span><span style="font-size:8px;color:#91a5c2;letter-spacing:.08em">A</span><span style="font-size:8px;color:#91a5c2;letter-spacing:.08em">FRQ</span>
+            <span style="font-size:9px;color:#7fd4ff;font-weight:700">L1</span><span class="val" id="phaseL1V" style="font-size:10px;color:#a8cae6">--</span><span class="val" id="phaseL1W" style="font-size:10px;color:#eaf4ff">--</span><span class="val" id="phaseL1A" style="font-size:10px;color:#ffd24a">--</span><span class="val" id="phaseL1F" style="font-size:10px;color:#8fd6ff">--</span>
+            <span style="font-size:9px;color:#7fd4ff;font-weight:700">L2</span><span class="val" id="phaseL2V" style="font-size:10px;color:#a8cae6">--</span><span class="val" id="phaseL2W" style="font-size:10px;color:#eaf4ff">--</span><span class="val" id="phaseL2A" style="font-size:10px;color:#ffd24a">--</span><span class="val" id="phaseL2F" style="font-size:10px;color:#8fd6ff">--</span>
+            <span style="font-size:9px;color:#7fd4ff;font-weight:700">L3</span><span class="val" id="phaseL3V" style="font-size:10px;color:#a8cae6">--</span><span class="val" id="phaseL3W" style="font-size:10px;color:#eaf4ff">--</span><span class="val" id="phaseL3A" style="font-size:10px;color:#ffd24a">--</span><span class="val" id="phaseL3F" style="font-size:10px;color:#8fd6ff">--</span>
+          </div>
         </div>
         <div class="flipface" style="position:absolute;inset:0;transform:rotateY(180deg);padding:0">
           <div class="val" style="position:absolute;left:14px;top:10px;font-size:15px">${esc(c.dc12_name || '12V DC SYSTEM')}</div>
@@ -4367,12 +4373,20 @@ class CasaLuna extends HTMLElement {
     this._setTxt('#dcPhaseSupplyV', dcVoltage(c.dc12_supply_voltage));
     this._setTxt('#dcPhaseBatteryV', dcVoltage(c.dc12_battery_voltage));
     this._setTxt('#dcPhaseCurrent', c.dc12_current ? `${this._decEnt(c.dc12_current)} A` : '--');
-    /* phase flip tile: front = grid phase power/voltage; back = configured 12V readings. */
-    const phaseVal = (id) => { const v = this._num(id, NaN); return Number.isFinite(v) ? v.toFixed(1) : '--'; };
-    const phaseKw = (id) => { const v = this._watts(id, NaN); return Number.isFinite(v) ? `${this._dec(v / 1000)}` : '--'; };
-    const setRow = (sel, vals) => { const el = this._q(sel); if (el) { const h = vals.map(v => `<span style="flex:1;text-align:center">${v}</span>`).join(''); if (el._h !== h) { el.innerHTML = h; el._h = h; } } };
-    setRow('#phaseRowP', [phaseKw(c.grid_phase_a), phaseKw(c.grid_phase_b), phaseKw(c.grid_phase_c)]);
-    setRow('#phaseRowV', [phaseVal(c.grid_phase_a_volt), phaseVal(c.grid_phase_b_volt), phaseVal(c.grid_phase_c_volt)]);
+    /* Grid Phases front: L1–L3 rows × voltage, watts, amps, and frequency columns. */
+    const phaseNum = (id, places = 1) => { const v = this._num(id, NaN); return Number.isFinite(v) ? v.toFixed(places) : '--'; };
+    const phaseWatts = id => { const v = this._watts(id, NaN); return Number.isFinite(v) ? `${Math.round(v)}` : '--'; };
+    const phaseRows = [
+      ['L1', c.grid_phase_a_volt, c.grid_phase_a, c.grid_phase_a_current, c.grid_phase_a_freq],
+      ['L2', c.grid_phase_b_volt, c.grid_phase_b, c.grid_phase_b_current, c.grid_phase_b_freq],
+      ['L3', c.grid_phase_c_volt, c.grid_phase_c, c.grid_phase_c_current, c.grid_phase_c_freq],
+    ];
+    phaseRows.forEach(([phase, volt, watts, amps, freq]) => {
+      this._setTxt(`#phase${phase}V`, phaseNum(volt));
+      this._setTxt(`#phase${phase}W`, phaseWatts(watts));
+      this._setTxt(`#phase${phase}A`, phaseNum(amps));
+      this._setTxt(`#phase${phase}F`, phaseNum(freq));
+    });
     const dcCurrent = this._num(c.dc12_current, NaN);
     const loadPct = Number.isFinite(dcCurrent) ? Math.min(100, Math.abs(dcCurrent) / Math.max(c.dc12_max_current || 1, 1) * 100) : 0;
     const loadCol = !Number.isFinite(dcCurrent) ? '#7fa3c4' : loadPct >= 90 ? '#ff5040' : loadPct >= 70 ? '#ffaa28' : '#46e05a';
@@ -5664,14 +5678,20 @@ class CasaLunaEditor extends HTMLElement {
     ]));
 
     shell.appendChild(section('phaseflip', '🔄', 'AC 3-Phase Monitor', [
-      info('The front shows grid L1–L3 power/voltage. Rotate it to see the configured 12V solar, supply, battery, and current readings.'),
+      info('The front is a 3-row L1–L3 grid with V, W, A, and frequency columns. Rotate it to see the configured 12V solar, supply, battery, and current readings.'),
       textField('label_phase_title', 'Grid side title', 'GRID PHASES'),
       eg('grid_phase_a', 'PHASE L1'),
       eg('grid_phase_a_volt', 'L1 VOLT'),
+      eg('grid_phase_a_current', 'L1 CURRENT'),
+      eg('grid_phase_a_freq', 'L1 FREQUENCY'),
       eg('grid_phase_b', 'PHASE L2'),
       eg('grid_phase_b_volt', 'L2 VOLT'),
+      eg('grid_phase_b_current', 'L2 CURRENT'),
+      eg('grid_phase_b_freq', 'L2 FREQUENCY'),
       eg('grid_phase_c', 'PHASE L3'),
       eg('grid_phase_c_volt', 'L3 VOLT'),
+      eg('grid_phase_c_current', 'L3 CURRENT'),
+      eg('grid_phase_c_freq', 'L3 FREQUENCY'),
       divider(),
       info('Optional AC source sensors below are used only for AC load and flow calculations; they are not displayed on the flip card.'),
       eg('inv_l1_power', 'AC source L1 power'),

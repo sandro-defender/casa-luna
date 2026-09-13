@@ -53,7 +53,11 @@ $required = @(
   "rawState === 'unavailable'",
   'auto_discover_security_include',
   'auto_discover_security_exclude',
-  'entityListPicker'
+  'entityListPicker',
+  'grid_phase_a_current',
+  'grid_phase_a_freq',
+  'id="phaseL1V"',
+  'id="phaseL3F"'
 )
 
 foreach ($marker in $required) {

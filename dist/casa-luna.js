@@ -3476,8 +3476,12 @@ class CasaLuna extends HTMLElement {
   /* The Security panel previews HA camera snapshots, not a set of continuous video
      connections. It refreshes a maximum of once per 10 seconds, while the selected
      camera still opens the full go2rtc player in the popup. */
-  async _resolveCameraSnapshot(entityId) {
+  async _resolveCameraSnapshot(entityId, preferSigned = false) {
     if (!this._hass || !entityId) return null;
+    const pic = this._attr(entityId, 'entity_picture');
+    /* HA already provides a browser-ready, tokenized preview URL for most camera
+       integrations. Use it first; it is more reliable than inventing a new URL. */
+    if (pic && !preferSigned) return this._hass.hassUrl ? this._hass.hassUrl(pic) : pic;
     try {
       const res = await this._hass.callWS({
         type: 'auth/sign_path',
@@ -3486,7 +3490,6 @@ class CasaLuna extends HTMLElement {
       });
       if (res?.path) return this._hass.hassUrl ? this._hass.hassUrl(res.path) : res.path;
     } catch (e) { /* fall through to the entity snapshot URL */ }
-    const pic = this._attr(entityId, 'entity_picture');
     return pic ? (this._hass.hassUrl ? this._hass.hassUrl(pic) : pic) : null;
   }
 
@@ -3495,8 +3498,18 @@ class CasaLuna extends HTMLElement {
       const id = img.getAttribute('data-camera-snapshot');
       this._resolveCameraSnapshot(id).then(url => {
         if (!url || !img.isConnected) return;
-        const divider = url.includes('?') ? '&' : '?';
-        img.src = `${url}${divider}_cl_snapshot=${Date.now()}`;
+        /* Resetting the source makes HA request a fresh still image without adding
+           an extra query parameter that could invalidate a camera access token. */
+        img.onerror = () => {
+          img.onerror = null;
+          this._resolveCameraSnapshot(id, true).then(fallback => {
+            if (!fallback || !img.isConnected) return;
+            img.removeAttribute('src');
+            img.src = fallback;
+          });
+        };
+        img.removeAttribute('src');
+        img.src = url;
       });
     });
   }

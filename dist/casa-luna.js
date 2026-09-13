@@ -1568,7 +1568,7 @@ class CasaLuna extends HTMLElement {
         text-transform:uppercase; margin:14px 0 8px; opacity:.85; }
       .pw-head:first-child { margin-top:0; }
       /* Security camera cards launch a stream only after selection. */
-      .pw-camera-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-bottom:14px; }
+      .pw-camera-list { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:14px; }
       .pw-camera-card { min-height:96px; padding:14px; box-sizing:border-box; cursor:pointer;
         display:flex; align-items:center; gap:12px; border-radius:12px;
         background:linear-gradient(145deg,rgba(24,55,86,.48),rgba(8,22,42,.56));
@@ -1580,6 +1580,7 @@ class CasaLuna extends HTMLElement {
       .pw-camera-copy { min-width:0; }
       .pw-camera-card .cam-entity-name { color:#eaf4ff; font-size:14px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .pw-camera-card .cam-entity-state { margin-top:4px; color:#7fa3c4; font-size:11px; letter-spacing:.04em; text-transform:uppercase; }
+      @media (max-width:760px) { .pw-camera-list { grid-template-columns:repeat(2,minmax(0,1fr)); } }
       @media (max-width:520px) { .pw-camera-list { grid-template-columns:1fr; } }
       /* time picker row (Tuya timer) */
       .pw-time { background:rgba(0,0,0,.3); border:1px solid rgba(120,180,255,.22); color:#eaf4ff;
@@ -3200,13 +3201,13 @@ class CasaLuna extends HTMLElement {
         });
       const addedCameras = added.filter(id => id.startsWith('camera.'));
       const addedEntities = added.filter(id => !id.startsWith('camera.'));
-      return this._wHead('Cameras')
-        + this._wCameraEntities(cameraEntries)
+      return this._wCameraEntities(cameraEntries)
         + this._wHead('Safety Sensors (auto)')
         + this._discoverTiles(safetyRules, 4, () => '🔥', 'security')
-        + this._wHead('Motion & Doors (auto)')
-        + this._discoverTiles([...motionRules, ...doorRules], 4,
-          id => { const dc = this._attr(id, 'device_class'); return ['door', 'window', 'opening', 'garage_door'].includes(dc) ? '🚪' : '🚶'; }, 'security')
+        + this._wHead('Motion & Presence (auto)')
+        + this._discoverTiles(motionRules, 4, () => '🚶', 'security')
+        + this._wHead('Doors & Windows (auto)')
+        + this._discoverTiles(doorRules, 4, () => '🚪', 'security')
         + (addedCameras.length ? this._wHead('Added Cameras') + this._wCameraEntities(addedCameras.map(id => this._cameraEntry(id))) : '')
         + (addedEntities.length ? this._wHead('Added Entities') + this._wGrid(4, addedEntities.map(id =>
           this._wTile('🛡️', this._name(id), id, this._attr(id, 'unit_of_measurement') || '')).join('')) : '')
@@ -3216,8 +3217,8 @@ class CasaLuna extends HTMLElement {
       c.sec_flame      && this._wTile('🔥', c.sec_flame_name      || this._name(c.sec_flame), c.sec_flame),
       c.sec_gas_analog && this._wTile('💨', c.sec_gas_analog_name || this._name(c.sec_gas_analog), c.sec_gas_analog),
       c.sec_gas_digital&& this._wTile('🔔', c.sec_gas_digital_name|| this._name(c.sec_gas_digital), c.sec_gas_digital),
-      c.sec_motion     && this._wTile('🚶', c.sec_motion_name     || this._name(c.sec_motion), c.sec_motion),
     ].filter(Boolean).join('');
+    const motion = c.sec_motion && this._wTile('🚶', c.sec_motion_name || this._name(c.sec_motion), c.sec_motion);
     const doors = [
       c.sec_door1   && this._wTile('🚪', c.sec_door1_name   || this._name(c.sec_door1), c.sec_door1),
       c.sec_window1 && this._wTile('🪟', c.sec_window1_name || this._name(c.sec_window1), c.sec_window1),
@@ -3232,9 +3233,9 @@ class CasaLuna extends HTMLElement {
       ['🌙', 'Night', c.sec_scene_night || ''],
     ].filter(s => s[2]);
     const cameras = [1, 2, 3, 4].map(n => this._cameraEntry(c[`sec_cam${n}`]));
-    return this._wHead('Cameras')
-      + this._wCameraEntities(cameras)
+    return this._wCameraEntities(cameras)
       + grp('Safety Sensors', safety ? this._wGrid(4, safety) : '')
+      + grp('Motion & Presence', motion ? this._wGrid(4, motion) : '')
       + grp('Doors & Windows', doors ? this._wGrid(2, doors) : '')
       + grp('More', extra ? this._wGrid(4, extra) : '')
       + grp('Alarm & Scenes', scenes.length ? this._wScenes(scenes) : '')

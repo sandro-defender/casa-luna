@@ -731,7 +731,10 @@ class CasaLuna extends HTMLElement {
       inverter_output_power: '',
       inv_l1_volt: '', inv_l2_volt: '', inv_l3_volt: '',
       /* ── SECURITY view ── (real entities pre-filled; slots empty for later) */
-      sec_cam1: '', sec_cam2: '',
+      sec_cam1: '', sec_cam1_go2rtc: '',
+      sec_cam2: '', sec_cam2_go2rtc: '',
+      sec_cam3: '', sec_cam3_go2rtc: '',
+      sec_cam4: '', sec_cam4_go2rtc: '',
       sec_flame: '', sec_gas_analog: '',
       sec_gas_digital: '', sec_motion: '',
       sec_door1: '', sec_window1: '',
@@ -888,7 +891,7 @@ class CasaLuna extends HTMLElement {
       'dc12_solar_voltage', 'dc12_supply_voltage', 'dc12_battery_voltage', 'dc12_current', 'dc12_power',
     ]);
     const isViewEntity = key => /^(sec_|clim_|plug_|light|wled_|auto_|tuya_|en_|bat_|sys_)/.test(key)
-      && !/(?:_name$|_enabled$|_icon$|_title$|_subtitle$|_capacity_wh$)/.test(key)
+      && !/(?:_name$|_go2rtc$|_enabled$|_icon$|_title$|_subtitle$|_capacity_wh$)/.test(key)
       && !/^auto_discover_/.test(key);
     const isEntity = key => directKeys.has(key) || isViewEntity(key) || /^_extra_tile_\d+_entity$/.test(key);
     for (const [key, value] of Object.entries(config)) {
@@ -2723,15 +2726,18 @@ class CasaLuna extends HTMLElement {
   }
 
   /* Security camera cards use HA camera entities. Selecting a card opens go2rtc. */
-  _wCameraEntities(ids) {
-    const cameras = [...new Set(ids.filter(Boolean))];
+  _wCameraEntities(entries) {
+    const seen = new Set();
+    const cameras = entries.filter(Boolean).map(entry => typeof entry === 'string'
+      ? { entityId: entry, go2rtcName: '' }
+      : entry).filter(({ entityId }) => entityId && !seen.has(entityId) && !!seen.add(entityId));
     if (!cameras.length) return `<div class="hint" style="opacity:.6">No camera entities configured. Add them in the editor → Cameras.</div>`;
     const cameraIcon = `<svg viewBox="0 0 24 24" width="36" height="36" aria-hidden="true"><rect x="3" y="7" width="14" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M17 10.2 21 8v9l-4-2.2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="10" cy="12.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`;
-    return `<div class="pw-camera-list">${cameras.map(id => {
+    return `<div class="pw-camera-list">${cameras.map(({ entityId: id, go2rtcName }) => {
       const label = this._name(id);
       const raw = String(this._st(id) ?? 'unknown').toLowerCase();
       const state = ['unavailable', 'unknown', ''].includes(raw) ? this._t('Unavailable') : this._cap(raw || 'ready');
-      return `<div class="pw-camera-card" data-camera-open="${esc(id)}" data-camera-label="${esc(label)}">
+      return `<div class="pw-camera-card" data-camera-open="${esc(id)}" data-camera-label="${esc(label)}" data-camera-go2rtc="${esc(go2rtcName || '')}">
         <span class="cam-entity-icon">${cameraIcon}</span><div style="min-width:0"><div class="cam-entity-name">${esc(label)}</div><div class="cam-entity-state">${esc(state)} · ${esc(this._t('Open stream'))}</div></div>
       </div>`;
     }).join('')}</div>`;
@@ -2895,7 +2901,7 @@ class CasaLuna extends HTMLElement {
     this._a11yPass(root);
     root.querySelectorAll('[data-camera-open]').forEach(el => el.addEventListener('click', () => {
       const id = el.getAttribute('data-camera-open');
-      this._openCameraFullscreen(id, el.getAttribute('data-camera-label') || this._name(id), this._go2rtcStreamUrl(id));
+      this._openCameraFullscreen(id, el.getAttribute('data-camera-label') || this._name(id), this._go2rtcStreamUrl(id, el.getAttribute('data-camera-go2rtc')));
     }));
     root.querySelectorAll('[data-more]').forEach(el => el.addEventListener('click', e => {
       if (e.target.closest('[data-toggle],[data-slider],[data-select],[data-press]')) return;
@@ -3170,8 +3176,12 @@ class CasaLuna extends HTMLElement {
       ['🏠', 'Disarm', c.sec_scene_disarm || ''],
       ['🌙', 'Night', c.sec_scene_night || ''],
     ].filter(s => s[2]);
+    const cameras = [1, 2, 3, 4].map(n => ({
+      entityId: c[`sec_cam${n}`],
+      go2rtcName: c[`sec_cam${n}_go2rtc`],
+    }));
     return this._wHead('Cameras')
-      + this._wCameraEntities([c.sec_cam1, c.sec_cam2])
+      + this._wCameraEntities(cameras)
       + grp('Safety Sensors', safety ? this._wGrid(4, safety) : '')
       + grp('Doors & Windows', doors ? this._wGrid(2, doors) : '')
       + grp('More', extra ? this._wGrid(4, extra) : '')
@@ -3475,9 +3485,10 @@ class CasaLuna extends HTMLElement {
     }
   }
 
-  _go2rtcStreamUrl(entityId) {
+  _go2rtcStreamUrl(entityId, go2rtcName = '') {
     const base = String(this.config?.camera_stream_base || '').replace(/\/$/, '');
-    return base && entityId ? `${base}/stream.html?src=${encodeURIComponent(entityId)}&mode=mse` : '';
+    const source = String(go2rtcName || entityId || '').trim();
+    return base && source ? `${base}/stream.html?src=${encodeURIComponent(source)}&mode=mse` : '';
   }
 
   _fireMoreInfo(entityId) {
@@ -3799,7 +3810,7 @@ class CasaLuna extends HTMLElement {
       return dim;
     }
     if (role === 'cam') {
-      const cams = [c.sec_cam1, c.sec_cam2].filter(Boolean);
+      const cams = [c.sec_cam1, c.sec_cam2, c.sec_cam3, c.sec_cam4].filter(Boolean);
       if (!cams.length) return dim;
       const states = cams.map(id => String(this._st(id) ?? '').toLowerCase());
       if (states.some(s => ['streaming', 'recording', 'idle', 'on'].includes(s))) return '#39d353';
@@ -5679,10 +5690,12 @@ class CasaLunaEditor extends HTMLElement {
 
     /* ── Per-view entity configuration (every field from the 9 nav panels) ── */
     shell.appendChild(section('nav_cameras', '📷', 'Cameras', [
-      info('Pick Home Assistant camera entities. The Security tab shows clickable camera cards; selecting one opens its stream in a popup. Set the go2rtc URL for the low-latency player.'),
+      info('Each camera has two fields: choose its Home Assistant camera entity, then enter the go2rtc stream name. The Security tab opens that stream only when you select its card. Leave the go2rtc name blank to use the HA entity ID.'),
       textField('camera_stream_base', 'go2rtc base URL (optional — for lower-latency WebRTC)', 'http://192.168.3.109:1984'),
-      picker('sec_cam1', 'Camera 1 (Front)', true),
-      picker('sec_cam2', 'Camera 2 (Gate)', true),
+      picker('sec_cam1', 'Camera 1 — Home Assistant entity', true), textField('sec_cam1_go2rtc', 'Camera 1 — go2rtc stream name', 'front_camera'),
+      picker('sec_cam2', 'Camera 2 — Home Assistant entity', true), textField('sec_cam2_go2rtc', 'Camera 2 — go2rtc stream name', 'gate_camera'),
+      picker('sec_cam3', 'Camera 3 — Home Assistant entity', true), textField('sec_cam3_go2rtc', 'Camera 3 — go2rtc stream name', 'camera_3'),
+      picker('sec_cam4', 'Camera 4 — Home Assistant entity', true), textField('sec_cam4_go2rtc', 'Camera 4 — go2rtc stream name', 'camera_4'),
     ]));
 
     shell.appendChild(section('nav_energy', '⚡', 'Energy View', [

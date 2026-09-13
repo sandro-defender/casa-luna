@@ -44,6 +44,8 @@ $required = @(
   "panel.classList.add('closing')",
   '_wCameraEntities',
   'data-camera-open',
+  'data-camera-go2rtc',
+  'sec_cam4_go2rtc',
   '_go2rtcStreamUrl'
 )
 

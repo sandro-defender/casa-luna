@@ -41,7 +41,10 @@ $required = @(
   'label_grid_indicator',
   'Left-navigation detail panels are standalone cards',
   'clPanelOut',
-  "panel.classList.add('closing')"
+  "panel.classList.add('closing')",
+  '_wCameraEntities',
+  'data-camera-open',
+  '_go2rtcStreamUrl'
 )
 
 foreach ($marker in $required) {

@@ -1555,20 +1555,17 @@ class CasaLuna extends HTMLElement {
       .pw-head { color:#7fb0d8; font-size:11px; font-weight:700; letter-spacing:.12em;
         text-transform:uppercase; margin:14px 0 8px; opacity:.85; }
       .pw-head:first-child { margin-top:0; }
-      /* camera tiles */
-      .pw-cams { display:flex; gap:12px; margin-bottom:14px; }
-      .pw-cam { flex:1; aspect-ratio:16/10; background:rgba(0,0,0,.55); border:1px solid rgba(0,200,255,.3);
-        border-radius:10px; overflow:hidden; position:relative; }
-      .pw-cam iframe { width:100%; height:100%; border:none; }
-      .pw-cam .camStream { width:100%; height:100%; object-fit:cover; display:block; background:#000; }
-      .pw-cam[data-cam-tap] { cursor:pointer; }
-      .pw-cam .clbl { position:absolute; bottom:6px; left:8px; font-size:11px; font-weight:700;
-        color:#eaf4ff; text-shadow:0 1px 3px #000; }
-      .pw-cam .crec { position:absolute; top:6px; right:8px; font-size:9px; font-weight:700;
-        color:#3fb950; display:flex; align-items:center; gap:3px; }
-      .pw-cam .crec::before { content:''; width:6px; height:6px; border-radius:50%; background:#3fb950;
-        animation:clRecBlink 1.4s infinite; }
-      @keyframes clRecBlink { 0%,100%{opacity:1} 50%{opacity:.3} }
+      /* Security camera cards launch a stream only after selection. */
+      .pw-camera-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-bottom:14px; }
+      .pw-camera-card { min-height:96px; padding:14px; box-sizing:border-box; cursor:pointer;
+        display:flex; align-items:center; gap:12px; border-radius:12px;
+        background:linear-gradient(145deg,rgba(24,55,86,.48),rgba(8,22,42,.56));
+        border:1px solid rgba(100,190,255,.28); transition:background .18s,border-color .18s,transform .18s; }
+      .pw-camera-card:hover { background:rgba(18,88,135,.34); border-color:rgba(100,210,255,.68); }
+      .pw-camera-card:active { transform:scale(.98); }
+      .pw-camera-card .cam-entity-icon { width:36px; height:36px; flex:none; color:#6ed7ff; }
+      .pw-camera-card .cam-entity-name { color:#eaf4ff; font-size:14px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .pw-camera-card .cam-entity-state { margin-top:4px; color:#7fa3c4; font-size:11px; letter-spacing:.04em; text-transform:uppercase; }
       /* time picker row (Tuya timer) */
       .pw-time { background:rgba(0,0,0,.3); border:1px solid rgba(120,180,255,.22); color:#eaf4ff;
         font-size:13px; border-radius:8px; padding:6px 8px; outline:none; }
@@ -2725,22 +2722,19 @@ class CasaLuna extends HTMLElement {
     return `<div class="pw-scenes">${cells}</div>`;
   }
 
-  /* dual camera tiles (go2rtc/WebRTC iframe streams) */
-  _wCameras(cams) {
-    const base = this.config.camera_stream_base || '';
-    const cells = cams.map(([label, src]) => {
-      label = this._t(label);
-      const url = src && base ? `${base}/stream.html?src=${encodeURIComponent(src)}&mode=mse` : '';
-      const body = url
-        ? `<iframe src="${esc(url)}" allowfullscreen></iframe>`
-        : src
-          ? `<img class="camStream" data-cam-id="${esc(src)}" alt="${esc(label)}">`
-          : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#5a7a9a;font-size:12px">📷 ${esc(label)}<br>${esc(this._t('(stream not set)'))}</div>`;
-      return `<div class="pw-cam" ${src ? `data-cam-tap="${esc(src)}" data-cam-label="${esc(label)}" data-cam-url="${esc(url)}"` : ''}>
-        ${body}
-        <div class="clbl">${esc(label)}</div><div class="crec">${esc(this._t('LIVE'))}</div></div>`;
-    }).join('');
-    return `<div class="pw-cams">${cells}</div>`;
+  /* Security camera cards use HA camera entities. Selecting a card opens go2rtc. */
+  _wCameraEntities(ids) {
+    const cameras = [...new Set(ids.filter(Boolean))];
+    if (!cameras.length) return `<div class="hint" style="opacity:.6">No camera entities configured. Add them in the editor → Cameras.</div>`;
+    const cameraIcon = `<svg viewBox="0 0 24 24" width="36" height="36" aria-hidden="true"><rect x="3" y="7" width="14" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M17 10.2 21 8v9l-4-2.2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="10" cy="12.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`;
+    return `<div class="pw-camera-list">${cameras.map(id => {
+      const label = this._name(id);
+      const raw = String(this._st(id) ?? 'unknown').toLowerCase();
+      const state = ['unavailable', 'unknown', ''].includes(raw) ? this._t('Unavailable') : this._cap(raw || 'ready');
+      return `<div class="pw-camera-card" data-camera-open="${esc(id)}" data-camera-label="${esc(label)}">
+        <span class="cam-entity-icon">${cameraIcon}</span><div style="min-width:0"><div class="cam-entity-name">${esc(label)}</div><div class="cam-entity-state">${esc(state)} · ${esc(this._t('Open stream'))}</div></div>
+      </div>`;
+    }).join('')}</div>`;
   }
 
   /* climate control card: current temp + target steppers + mode/fan/swing chips + eco (climate.*) */
@@ -2899,11 +2893,10 @@ class CasaLuna extends HTMLElement {
   _bindPanelWidgets(root) {
     const hass = this._hass; if (!hass) return;
     this._a11yPass(root);
-    root.querySelectorAll('[data-cam-tap]').forEach(el => el.addEventListener('click', e => {
-      if (e.target.id === 'camFsClose') return;
-      this._openCameraFullscreen(el.getAttribute('data-cam-tap'), el.getAttribute('data-cam-label') || 'Camera', el.getAttribute('data-cam-url') || '');
+    root.querySelectorAll('[data-camera-open]').forEach(el => el.addEventListener('click', () => {
+      const id = el.getAttribute('data-camera-open');
+      this._openCameraFullscreen(id, el.getAttribute('data-camera-label') || this._name(id), this._go2rtcStreamUrl(id));
     }));
-    this._refreshCameraStreams();
     root.querySelectorAll('[data-more]').forEach(el => el.addEventListener('click', e => {
       if (e.target.closest('[data-toggle],[data-slider],[data-select],[data-press]')) return;
       this._fireMoreInfo(el.getAttribute('data-more'));
@@ -3148,8 +3141,9 @@ class CasaLuna extends HTMLElement {
     const c = this.config;
     /* auto-discover: all cameras + safety binary_sensors */
     if (this._autoOn('security')) {
+      const cameraIds = this._discover([{ domain: 'camera' }]);
       return this._wHead('Cameras')
-        + this._wCameras([['Front — Cam 1', c.sec_cam1 || ''], ['Gate — Cam 2', c.sec_cam2 || '']])
+        + this._wCameraEntities(cameraIds)
         + this._wHead('Safety Sensors (auto)')
         + this._discoverTiles([{ domain: 'binary_sensor', device_class: ['gas', 'smoke', 'carbon_monoxide', 'safety'] }], 4, () => '🔥')
         + this._wHead('Motion & Doors (auto)')
@@ -3176,10 +3170,8 @@ class CasaLuna extends HTMLElement {
       ['🏠', 'Disarm', c.sec_scene_disarm || ''],
       ['🌙', 'Night', c.sec_scene_night || ''],
     ].filter(s => s[2]);
-    return this._wCameras([
-      ['Front — Cam 1', c.sec_cam1 || ''],
-      ['Gate — Cam 2', c.sec_cam2 || ''],
-    ])
+    return this._wHead('Cameras')
+      + this._wCameraEntities([c.sec_cam1, c.sec_cam2])
       + grp('Safety Sensors', safety ? this._wGrid(4, safety) : '')
       + grp('Doors & Windows', doors ? this._wGrid(2, doors) : '')
       + grp('More', extra ? this._wGrid(4, extra) : '')
@@ -3437,12 +3429,8 @@ class CasaLuna extends HTMLElement {
 
 
   /* ═══════════════════════ POPUPS (more-info, PV voltage, tile control) ═══════════════════════ */
-  /* Live camera feed without go2rtc: ask HA to sign the MJPEG stream proxy path for this
-     camera entity, so the browser can render it directly as a continuous <img> stream
-     (no JS polling needed — multipart MJPEG updates itself). Falls back to a periodically
-     refreshed snapshot (entity_picture) if signing isn't available, e.g. very old HA.
-     Resolved URLs are cached briefly so re-rendering the view each tick doesn't re-sign
-     (and reconnect the stream) every time. */
+  /* When go2rtc is not configured, use Home Assistant's signed camera stream as the
+     fullscreen popup fallback. */
   async _resolveCameraStream(entityId, forFullscreen = false) {
     if (!this._hass || !entityId) return null;
     const cache = this._camStreamCache || (this._camStreamCache = {});
@@ -3466,19 +3454,6 @@ class CasaLuna extends HTMLElement {
     if (url && !forFullscreen) cache[entityId] = { url, expiresAt: Date.now() + 5000, mjpeg: false };
     return url;
   }
-  /* set/refresh every fallback camera <img> on the dashboard; called once after each
-     render. Reuses the cached URL (see above) so an MJPEG stream isn't restarted every tick. */
-  _refreshCameraStreams() {
-    const imgs = this.shadowRoot.querySelectorAll('img.camStream[data-cam-id]');
-    imgs.forEach(img => {
-      const id = img.dataset.camId;
-      if (!id) return;
-      this._resolveCameraStream(id).then(url => {
-        if (!url || !img.isConnected) return;
-        if (img.src !== url) img.src = url;
-      });
-    });
-  }
   _openCameraFullscreen(entityId, label, go2rtcUrl) {
     const ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center';
@@ -3498,6 +3473,11 @@ class CasaLuna extends HTMLElement {
       body.appendChild(img);
       this._resolveCameraStream(entityId, true).then(url => { if (url) img.src = url; });
     }
+  }
+
+  _go2rtcStreamUrl(entityId) {
+    const base = String(this.config?.camera_stream_base || '').replace(/\/$/, '');
+    return base && entityId ? `${base}/stream.html?src=${encodeURIComponent(entityId)}&mode=mse` : '';
   }
 
   _fireMoreInfo(entityId) {
@@ -3567,7 +3547,7 @@ class CasaLuna extends HTMLElement {
       el.setAttribute('aria-checked', el.classList.contains('on') ? 'true' : 'false');
       if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
     });
-    const buttons = r.querySelectorAll('[data-more], [data-press], [data-scene], [data-cam-tap], .flipbtn, .tap, .navtile, .bottile, .stattile');
+    const buttons = r.querySelectorAll('[data-more], [data-press], [data-scene], [data-camera-open], .flipbtn, .tap, .navtile, .bottile, .stattile');
     buttons.forEach(el => {
       if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
       if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
@@ -5699,7 +5679,7 @@ class CasaLunaEditor extends HTMLElement {
 
     /* ── Per-view entity configuration (every field from the 9 nav panels) ── */
     shell.appendChild(section('nav_cameras', '📷', 'Cameras', [
-      info('Pick a camera entity and it just works — streams live via Home Assistant\'s own camera proxy, no extra setup. Leave "Stream base URL" empty unless you run go2rtc.'),
+      info('Pick Home Assistant camera entities. The Security tab shows clickable camera cards; selecting one opens its stream in a popup. Set the go2rtc URL for the low-latency player.'),
       textField('camera_stream_base', 'go2rtc base URL (optional — for lower-latency WebRTC)', 'http://192.168.3.109:1984'),
       picker('sec_cam1', 'Camera 1 (Front)', true),
       picker('sec_cam2', 'Camera 2 (Gate)', true),

@@ -59,7 +59,9 @@ $required = @(
   'id="phaseL1V"',
   'id="phaseL3F"',
   'pv_min_power',
+  'pv_flow_max_power',
   'PV Array Max Power',
+  'PV Animation Full-Power',
   "clear.setAttribute('aria-label'"
 )
 

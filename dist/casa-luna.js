@@ -602,7 +602,7 @@ const glowShadow = g => `inset 0 1px 0 rgba(120,210,255,.28),inset 0 -1px 0 rgba
    instead of every call site re-coercing defensively. Coerced once in setConfig(). */
 const NUMERIC_CONFIG_KEYS = [
   'battery_full_ah', 'battery_full_wh',
-  'pv_min_power', 'pv_max_power', 'grid_max_power', 'dc12_max_current', 'lower_section_offset', 'charger_battery_capacity_wh',
+  'pv_min_power', 'pv_max_power', 'pv_flow_max_power', 'grid_max_power', 'dc12_max_current', 'lower_section_offset', 'charger_battery_capacity_wh',
   'thresh_temp_warn', 'thresh_temp_critical', 'thresh_cell_v_low', 'thresh_cell_v_critical', 'thresh_cell_v_high',
   'thresh_soc_low', 'thresh_soc_critical', 'thresh_load_warn', 'thresh_load_critical',
   'thresh_endurance_low', 'thresh_endurance_crit',
@@ -679,7 +679,7 @@ class CasaLuna extends HTMLElement {
       battery_max_cell: '',
       batt_dis: '',
       battery_full_ah: 0, battery_full_wh: 0, battery_cap_unit: 'ah',
-      pv_min_power: 0, pv_max_power: 7500,
+      pv_min_power: 0, pv_max_power: 7500, pv_flow_max_power: 6000,
       lower_section_offset: 0,
       charger_state: '', charger_current: '', charger_power: '',
       charger_soc: '', charger_eta: '', charger_battery_capacity_wh: 0,
@@ -4823,6 +4823,10 @@ class CasaLuna extends HTMLElement {
   /* ══ PV wave helpers (identical to khan-skycard) ══ */
   _flowLevel(w, type) {
     if (type === 'solar') {
+      /* Scale the PV line animation independently of the PV bar. With the default
+         6000 W full-power value, the original animation thresholds are unchanged. */
+      const fullPower = Math.max(1, Number(this.config?.pv_flow_max_power) || 6000);
+      w = Math.abs(w) * 6000 / fullPower;
       if (w < 200)  return { dur: 4,   size: 1.8, count: 6  };
       if (w < 600)  return { dur: 3.2, size: 2.2, count: 12 };
       if (w < 1200) return { dur: 2.7, size: 2.5, count: 20 };
@@ -5643,11 +5647,12 @@ class CasaLunaEditor extends HTMLElement {
     ]));
 
     shell.appendChild(section('solar', '🔆', 'Solar', [
-      info('PV display scale for the dashboard production bar.'),
+      info('Set the dashboard PV bar scale and the separate full-power point for the animated PV line.'),
       grid2(
         numberField('pv_min_power', 'PV Array Min Power', 0, 30000, 10, 'W'),
         numberField('pv_max_power', 'PV Array Max Power', 1, 30000, 100, 'W'),
       ),
+      numberField('pv_flow_max_power', 'PV Animation Full-Power', 100, 30000, 100, 'W'),
       divider(),
       eg('pv1_power', 'SOLAR POWER'),
       eg('pv_total_power', 'PV TOTAL POWER'),

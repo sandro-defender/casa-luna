@@ -5652,7 +5652,7 @@ class CasaLunaEditor extends HTMLElement {
         numberField('pv_min_power', 'PV Array Min Power', 0, 30000, 10, 'W'),
         numberField('pv_max_power', 'PV Array Max Power', 1, 30000, 100, 'W'),
       ),
-      numberField('pv_flow_max_power', 'PV Animation Full-Power', 10, 30000, 10, 'W'),
+      numberField('pv_flow_max_power', 'PV Animation Full-Power', 50, 30000, 50, 'W'),
       divider(),
       eg('pv1_power', 'SOLAR POWER'),
       eg('pv_total_power', 'PV TOTAL POWER'),

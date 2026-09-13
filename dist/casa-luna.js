@@ -1015,6 +1015,8 @@ class CasaLuna extends HTMLElement {
   }
   disconnectedCallback() {
     clearInterval(this._clock);
+    clearInterval(this._cameraSnapshotTimer);
+    this._cameraSnapshotTimer = null;
     this._ro?.disconnect(); this._ro = null;
     if (this._visHandler) document.removeEventListener('visibilitychange', this._visHandler);
     (this._overlays || []).forEach(n => n.remove()); this._overlays = [];
@@ -1022,12 +1024,14 @@ class CasaLuna extends HTMLElement {
   _onVisibilityChange() {
     if (document.hidden) {
       clearInterval(this._clock); this._clock = null;
+      clearInterval(this._cameraSnapshotTimer); this._cameraSnapshotTimer = null;
       this.classList.add('cl-paused');
       this.shadowRoot.querySelectorAll('svg').forEach(svg => { try { svg.pauseAnimations && svg.pauseAnimations(); } catch (e) {} });
     } else {
       if (!this._clock) this._clock = setInterval(() => { if (this._hass) this._update(true); }, 15000);
       this.classList.remove('cl-paused');
       this.shadowRoot.querySelectorAll('svg').forEach(svg => { try { svg.unpauseAnimations && svg.unpauseAnimations(); } catch (e) {} });
+      this._startCameraSnapshots(this._cameraSnapshotRoot);
       if (this._hass) this._update(true); // resync anything that changed while paused
     }
   }
@@ -1566,9 +1570,12 @@ class CasaLuna extends HTMLElement {
         border:1px solid rgba(100,190,255,.28); transition:background .18s,border-color .18s,transform .18s; }
       .pw-camera-card:hover { background:rgba(18,88,135,.34); border-color:rgba(100,210,255,.68); }
       .pw-camera-card:active { transform:scale(.98); }
-      .pw-camera-card .cam-entity-icon { width:36px; height:36px; flex:none; color:#6ed7ff; }
+      .pw-camera-preview { width:112px; height:72px; flex:none; object-fit:cover; border-radius:8px;
+        background:linear-gradient(145deg,#162f49,#081527); border:1px solid rgba(120,200,255,.2); }
+      .pw-camera-copy { min-width:0; }
       .pw-camera-card .cam-entity-name { color:#eaf4ff; font-size:14px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .pw-camera-card .cam-entity-state { margin-top:4px; color:#7fa3c4; font-size:11px; letter-spacing:.04em; text-transform:uppercase; }
+      @media (max-width:520px) { .pw-camera-list { grid-template-columns:1fr; } }
       /* time picker row (Tuya timer) */
       .pw-time { background:rgba(0,0,0,.3); border:1px solid rgba(120,180,255,.22); color:#eaf4ff;
         font-size:13px; border-radius:8px; padding:6px 8px; outline:none; }
@@ -2732,13 +2739,13 @@ class CasaLuna extends HTMLElement {
       ? { entityId: entry, go2rtcName: '' }
       : entry).filter(({ entityId }) => entityId && !seen.has(entityId) && !!seen.add(entityId));
     if (!cameras.length) return `<div class="hint" style="opacity:.6">No camera entities configured. Add them in the editor → Cameras.</div>`;
-    const cameraIcon = `<svg viewBox="0 0 24 24" width="36" height="36" aria-hidden="true"><rect x="3" y="7" width="14" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M17 10.2 21 8v9l-4-2.2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="10" cy="12.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`;
     return `<div class="pw-camera-list">${cameras.map(({ entityId: id, go2rtcName }) => {
       const label = this._name(id);
       const raw = String(this._st(id) ?? 'unknown').toLowerCase();
       const state = ['unavailable', 'unknown', ''].includes(raw) ? this._t('Unavailable') : this._cap(raw || 'ready');
       return `<div class="pw-camera-card" data-camera-open="${esc(id)}" data-camera-label="${esc(label)}" data-camera-go2rtc="${esc(go2rtcName || '')}">
-        <span class="cam-entity-icon">${cameraIcon}</span><div style="min-width:0"><div class="cam-entity-name">${esc(label)}</div><div class="cam-entity-state">${esc(state)} · ${esc(this._t('Open stream'))}</div></div>
+        <img class="pw-camera-preview" data-camera-snapshot="${esc(id)}" alt="${esc(label)} preview">
+        <div class="pw-camera-copy"><div class="cam-entity-name">${esc(label)}</div><div class="cam-entity-state">${esc(state)} · ${esc(this._t('Open stream'))}</div></div>
       </div>`;
     }).join('')}</div>`;
   }
@@ -2899,6 +2906,7 @@ class CasaLuna extends HTMLElement {
   _bindPanelWidgets(root) {
     const hass = this._hass; if (!hass) return;
     this._a11yPass(root);
+    this._startCameraSnapshots(root);
     root.querySelectorAll('[data-camera-open]').forEach(el => el.addEventListener('click', () => {
       const id = el.getAttribute('data-camera-open');
       this._openCameraFullscreen(id, el.getAttribute('data-camera-label') || this._name(id), this._go2rtcStreamUrl(id, el.getAttribute('data-camera-go2rtc')));
@@ -3464,6 +3472,52 @@ class CasaLuna extends HTMLElement {
     if (url && !forFullscreen) cache[entityId] = { url, expiresAt: Date.now() + 5000, mjpeg: false };
     return url;
   }
+
+  /* The Security panel previews HA camera snapshots, not a set of continuous video
+     connections. It refreshes a maximum of once per 10 seconds, while the selected
+     camera still opens the full go2rtc player in the popup. */
+  async _resolveCameraSnapshot(entityId) {
+    if (!this._hass || !entityId) return null;
+    try {
+      const res = await this._hass.callWS({
+        type: 'auth/sign_path',
+        path: `/api/camera_proxy/${entityId}`,
+        expires: 20,
+      });
+      if (res?.path) return this._hass.hassUrl ? this._hass.hassUrl(res.path) : res.path;
+    } catch (e) { /* fall through to the entity snapshot URL */ }
+    const pic = this._attr(entityId, 'entity_picture');
+    return pic ? (this._hass.hassUrl ? this._hass.hassUrl(pic) : pic) : null;
+  }
+
+  _refreshCameraSnapshots(root) {
+    root?.querySelectorAll('img[data-camera-snapshot]').forEach(img => {
+      const id = img.getAttribute('data-camera-snapshot');
+      this._resolveCameraSnapshot(id).then(url => {
+        if (!url || !img.isConnected) return;
+        const divider = url.includes('?') ? '&' : '?';
+        img.src = `${url}${divider}_cl_snapshot=${Date.now()}`;
+      });
+    });
+  }
+
+  _startCameraSnapshots(root) {
+    clearInterval(this._cameraSnapshotTimer);
+    this._cameraSnapshotTimer = null;
+    this._cameraSnapshotRoot = root || null;
+    if (!root?.querySelector?.('img[data-camera-snapshot]') || document.hidden) return;
+    const refresh = () => {
+      if (!root.isConnected || document.hidden) {
+        clearInterval(this._cameraSnapshotTimer);
+        this._cameraSnapshotTimer = null;
+        return;
+      }
+      this._refreshCameraSnapshots(root);
+    };
+    refresh();
+    this._cameraSnapshotTimer = setInterval(refresh, 10000);
+  }
+
   _openCameraFullscreen(entityId, label, go2rtcUrl) {
     const ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center';

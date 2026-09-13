@@ -45,7 +45,10 @@ $required = @(
   '_wCameraEntities',
   'data-camera-open',
   'data-camera-go2rtc',
+  'data-camera-snapshot',
   'sec_cam4_go2rtc',
+  '_resolveCameraSnapshot',
+  '_startCameraSnapshots',
   '_go2rtcStreamUrl'
 )
 

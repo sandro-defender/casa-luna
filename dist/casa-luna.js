@@ -1534,7 +1534,7 @@ class CasaLuna extends HTMLElement {
       .climate-step { width:30px; height:30px; padding:0; border:1px solid rgba(0,200,255,.38); border-radius:8px; background:rgba(0,180,255,.12); color:#7fd4ff; cursor:pointer; font-size:18px; line-height:1; }
       .climate-step:active { background:rgba(0,180,255,.28); }
       .climate-target-value { margin-top:1px; color:#ffd24a; font-size:21px; font-weight:700; line-height:1; text-align:center; }
-      .climate-mode-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
+      .climate-mode-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:5px; }
       .climate-chip { min-width:0; padding:6px 4px; border:1px solid rgba(120,180,255,.18); border-radius:7px; background:rgba(255,255,255,.035); color:#bcd8ee; cursor:pointer; font:inherit; font-size:10px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .climate-chip.is-active { border-color:rgba(0,200,255,.65); background:rgba(0,200,255,.18); color:#5bc8ff; }
       .climate-chip:disabled { cursor:default; opacity:.4; }
@@ -2880,9 +2880,9 @@ class CasaLuna extends HTMLElement {
         <div class="climate-reading">
           <div class="climate-reading-label">${esc(this._t('TARGET'))}</div>
           <div class="climate-target-control">
-            <button type="button" class="climate-step" aria-label="Lower temperature" ${has ? `data-tempstep="${esc(entId)}" data-delta="-0.5"` : 'disabled'}>−</button>
+            <button type="button" class="climate-step" aria-label="Lower temperature" ${has ? `data-tempstep="${esc(entId)}" data-delta="-1"` : 'disabled'}>−</button>
             <div data-target="${esc(entId)}" class="climate-target-value">${target != null ? (+target).toFixed(1) + '°' : '--'}</div>
-            <button type="button" class="climate-step" aria-label="Raise temperature" ${has ? `data-tempstep="${esc(entId)}" data-delta="0.5"` : 'disabled'}>+</button>
+            <button type="button" class="climate-step" aria-label="Raise temperature" ${has ? `data-tempstep="${esc(entId)}" data-delta="1"` : 'disabled'}>+</button>
           </div>
         </div>
       </div>

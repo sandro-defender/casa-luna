@@ -84,6 +84,8 @@ $required = @(
   'pw-climate',
   'climate-reading-grid',
   'climate-mode-grid',
+  'data-delta="-1"',
+  'repeat(6,minmax(0,1fr))',
   'Add security entity',
   '_unusedEntityFields',
   'Add ${label}',

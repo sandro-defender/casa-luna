@@ -729,6 +729,7 @@ class CasaLuna extends HTMLElement {
       auto_discover_security: false, auto_discover_climate: false,
       auto_discover_lighting: false, auto_discover_automation: false,
       auto_discover_security_include: [], auto_discover_security_exclude: [],
+      auto_discover_security_names: {},
       security_extra_entities: [],
       events_entities: [],
       /* ── phase monitor / optional AC-load inputs ── */
@@ -2613,6 +2614,8 @@ class CasaLuna extends HTMLElement {
   _securityName(entId, fallback = '') {
     if (!entId) return fallback;
     const c = this.config || {};
+    const autoName = c.auto_discover_security_names?.[entId];
+    if (typeof autoName === 'string' && autoName.trim()) return autoName.trim();
     const custom = (Array.isArray(c.security_extra_entities) ? c.security_extra_entities : [])
       .find(item => item && item.entity === entId && typeof item.name === 'string' && item.name.trim());
     if (custom) return custom.name.trim();
@@ -5369,7 +5372,7 @@ class CasaLunaEditor extends HTMLElement {
       .erow.open .erow-head{background:var(--secondary-background-color,rgba(0,0,0,.04))}
       .erow-body{padding:8px 4px 4px}
       .erow-body ha-selector{width:100%;display:block}
-      @media (max-width:760px){.security-entity-row{grid-template-columns:1fr !important}.security-entity-row button{width:100%}}
+      @media (max-width:760px){.security-entity-row,.security-auto-name-row{grid-template-columns:1fr !important}.security-entity-row button{width:100%}}
     </style>`;
 
     const shell = document.createElement('div');
@@ -5581,6 +5584,61 @@ class CasaLunaEditor extends HTMLElement {
       add.style.cssText = 'padding:8px 10px;border:1px solid var(--primary-color,#03a9f4);border-radius:7px;background:transparent;color:var(--primary-color,#03a9f4);cursor:pointer';
       add.addEventListener('click', () => save([...entries, { entity: '', name: '' }]));
       wrap.appendChild(add);
+      return wrap;
+    };
+
+    /* Names for the devices found automatically. Kept separate from the manual
+       entity rows, so changing a name never changes discovery or visibility. */
+    const securityAutoNameRows = () => {
+      const wrap = document.createElement('div'); wrap.className = 'fld';
+      const label = document.createElement('label'); label.textContent = 'Auto-discovered Security names';
+      const help = document.createElement('div'); help.style.cssText = 'margin:-2px 0 8px;font-size:.72rem;line-height:1.35;color:var(--secondary-text-color)';
+      help.textContent = 'Give each live camera, safety, motion, presence, door, or window entity its own display name. Names appear when Auto-discover is enabled.';
+      wrap.append(label, help);
+      const states = this._hass?.states || {};
+      const entries = Object.entries(states)
+        .filter(([id, state]) => {
+          const [domain] = id.split('.');
+          const raw = String(state?.state ?? '').toLowerCase();
+          const deviceClass = String(state?.attributes?.device_class || '').toLowerCase();
+          return raw && raw !== 'unknown' && raw !== 'unavailable'
+            && (domain === 'camera' || (domain === 'binary_sensor' && CasaLuna.AUTODISC_BINARY_DC.has(deviceClass)));
+        })
+        .sort(([leftId, leftState], [rightId, rightState]) => {
+          const left = leftState?.attributes?.friendly_name || leftId;
+          const right = rightState?.attributes?.friendly_name || rightId;
+          return String(left).localeCompare(String(right));
+        });
+      if (!entries.length) {
+        const empty = document.createElement('div'); empty.style.cssText = 'font-size:.78rem;color:var(--secondary-text-color);padding:8px 0';
+        empty.textContent = 'No live Security entities found. Check their Home Assistant state, then reopen this editor.';
+        wrap.appendChild(empty);
+        return wrap;
+      }
+      const names = cfg.auto_discover_security_names && typeof cfg.auto_discover_security_names === 'object'
+        ? cfg.auto_discover_security_names : {};
+      entries.forEach(([id, state]) => {
+        const row = document.createElement('div'); row.className = 'security-auto-name-row';
+        row.style.cssText = 'display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:end;margin:8px 0;padding:8px;border-radius:7px;background:var(--secondary-background-color,rgba(0,0,0,.05))';
+        const source = document.createElement('div');
+        const sourceLabel = document.createElement('div'); sourceLabel.className = 'lblrow'; sourceLabel.textContent = 'Home Assistant entity';
+        const friendly = document.createElement('div'); friendly.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.84rem';
+        friendly.textContent = state?.attributes?.friendly_name || id;
+        const entityId = document.createElement('div'); entityId.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.7rem;color:var(--secondary-text-color)';
+        entityId.textContent = id;
+        source.append(sourceLabel, friendly, entityId);
+        const nameField = document.createElement('div');
+        const nameLabel = document.createElement('label'); nameLabel.textContent = 'Custom display name';
+        const input = document.createElement('input'); input.type = 'text'; input.placeholder = state?.attributes?.friendly_name || id; input.value = String(names[id] || '');
+        input.addEventListener('change', event => {
+          const next = { ...(this._config.auto_discover_security_names || {}) };
+          const value = event.target.value.trim();
+          if (value) next[id] = value; else delete next[id];
+          this._set('auto_discover_security_names', next);
+        });
+        nameField.append(nameLabel, input);
+        row.append(source, nameField); wrap.appendChild(row);
+      });
       return wrap;
     };
 
@@ -6148,6 +6206,7 @@ class CasaLunaEditor extends HTMLElement {
       info('When Auto-discover is enabled, include additional live security entities or hide specific discovered entities. The pickers are limited to security-relevant Home Assistant domains.'),
       entityListPicker('auto_discover_security_include', 'Auto-discovery — include more entities', 'Included live entities appear in the Added section.', { entity: { filter: [{ domain: 'camera' }, { domain: 'binary_sensor' }, { domain: 'lock' }, { domain: 'alarm_control_panel' }, { domain: 'sensor' }] } }),
       entityListPicker('auto_discover_security_exclude', 'Auto-discovery — hide entities', 'Hide a camera or binary sensor that Auto-discovery found.', { entity: { filter: [{ domain: 'camera' }, { domain: 'binary_sensor' }] } }),
+      securityAutoNameRows(),
       divider(),
       info('Pick + name each. Empty slots are hidden.'),
       picker('sec_flame', 'Flame', true), textField('sec_flame_name', 'Flame — name', 'Flame'),

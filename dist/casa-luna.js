@@ -736,10 +736,10 @@ class CasaLuna extends HTMLElement {
       inverter_output_power: '',
       inv_l1_volt: '', inv_l2_volt: '', inv_l3_volt: '',
       /* ── SECURITY view ── (real entities pre-filled; slots empty for later) */
-      sec_cam1: '', sec_cam1_go2rtc: '',
-      sec_cam2: '', sec_cam2_go2rtc: '',
-      sec_cam3: '', sec_cam3_go2rtc: '',
-      sec_cam4: '', sec_cam4_go2rtc: '',
+      sec_cam1: '', sec_cam1_name: '', sec_cam1_go2rtc: '',
+      sec_cam2: '', sec_cam2_name: '', sec_cam2_go2rtc: '',
+      sec_cam3: '', sec_cam3_name: '', sec_cam3_go2rtc: '',
+      sec_cam4: '', sec_cam4_name: '', sec_cam4_go2rtc: '',
       sec_flame: '', sec_gas_analog: '',
       sec_gas_digital: '', sec_motion: '',
       sec_door1: '', sec_window1: '',
@@ -949,7 +949,7 @@ class CasaLuna extends HTMLElement {
      skipping _update() and leaving those displays stale until some unrelated watched
      entity happened to change too. */
   static AUTODISC_DOMAINS = new Set(['automation', 'climate', 'scene', 'light']);
-  static AUTODISC_BINARY_DC = new Set(['motion', 'occupancy', 'moving', 'door', 'window', 'opening', 'garage_door', 'gas', 'smoke', 'carbon_monoxide', 'safety']);
+  static AUTODISC_BINARY_DC = new Set(['motion', 'occupancy', 'presence', 'moving', 'door', 'window', 'opening', 'garage_door', 'gas', 'smoke', 'carbon_monoxide', 'safety']);
   static AUTODISC_SENSOR_DC = new Set(['temperature', 'humidity']);
   _entitiesSignature() {
     const states = this._hass?.states;
@@ -1524,6 +1524,14 @@ class CasaLuna extends HTMLElement {
       .pw-mtile .mv { font-size:14px; font-weight:700; color:#5bc8ff; white-space:nowrap;
         overflow:hidden; text-overflow:ellipsis; }
       .pw-mtile .mv.off { color:#7fa3c4; }
+      /* Security state cards are deliberately denser than metric cards. Their text
+         conveys the state; the active treatment makes a detected/open device easy to spot. */
+      .pw-mtile.pw-security-sensor { min-height:48px; padding:6px 5px; border-radius:8px; }
+      .pw-mtile.pw-security-sensor .mi { font-size:13px; }
+      .pw-mtile.pw-security-sensor .ml { margin:2px 0 1px; font-size:8px; }
+      .pw-mtile.pw-security-sensor .mv { font-size:12px; }
+      .pw-mtile.pw-security-sensor.security-active { background:rgba(255,114,68,.2); border-color:rgba(255,146,74,.88); box-shadow:inset 0 0 0 1px rgba(255,205,112,.18),0 0 12px rgba(255,104,50,.2); }
+      .pw-mtile.pw-security-sensor.security-active .mv { color:#ffe1a8; }
       .pw-ttile { background:rgba(255,255,255,.04); border:1px solid rgba(120,180,255,.14);
         border-radius:10px; padding:9px 7px; min-height:62px; box-sizing:border-box;
         display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
@@ -2601,23 +2609,38 @@ class CasaLuna extends HTMLElement {
   /* Every editor entity can optionally use title_<config_key> as its display name.
      Existing specialised names (for lights, relays, etc.) still take precedence because
      callers pass them in as the fallback label. */
+  _securityName(entId, fallback = '') {
+    if (!entId) return fallback;
+    const c = this.config || {};
+    const keys = [
+      'sec_cam1', 'sec_cam2', 'sec_cam3', 'sec_cam4',
+      'sec_flame', 'sec_gas_analog', 'sec_gas_digital', 'sec_motion', 'sec_door1', 'sec_window1',
+      ...[1, 2, 3, 4, 5, 6].map(n => `sec_extra_${n}_entity`),
+    ];
+    const key = keys.find(candidate => c[candidate] === entId);
+    if (!key) return fallback;
+    const labelKey = key.endsWith('_entity') ? key.replace('_entity', '_name') : `${key}_name`;
+    return typeof c[labelKey] === 'string' && c[labelKey].trim() ? c[labelKey].trim() : fallback;
+  }
+
   _displayLabel(entId, fallback) {
     if (!entId) return fallback;
     const c = this.config || {};
     const key = Object.keys(c).find(k => c[k] === entId && typeof c[`title_${k}`] === 'string' && c[`title_${k}`].trim());
-    return key ? c[`title_${key}`].trim() : fallback;
+    return key ? c[`title_${key}`].trim() : this._securityName(entId, fallback);
   }
 
   /* wrap items in an N-column grid (compact tile layout) */
   _wGrid(cols, html) { return `<div class="pw-grid" style="grid-template-columns:repeat(${cols},1fr)">${html}</div>`; }
 
   /* compact metric TILE: icon / label / value stacked (taps to more-info / history) */
-  _wTile(icon, label, entId, unit = '', isPower = false) {
+  _wTile(icon, label, entId, unit = '', isPower = false, variant = '') {
     label = this._displayLabel(entId, this._t(label));
     const has = !!entId;
     const raw = has ? this._st(entId) : null;
     const bad = raw == null || raw === '' || /^(unavailable|unknown)$/i.test(raw);
     const deviceClass = has ? this._attr(entId, 'device_class') : '';
+    const active = !bad && /^(on|open)$/i.test(String(raw)) && ['door', 'window', 'opening', 'garage_door', 'motion', 'occupancy', 'presence', 'moving'].includes(deviceClass);
     let val;
     if (bad) {
       val = '--';
@@ -2634,7 +2657,7 @@ class CasaLuna extends HTMLElement {
       const n = this._num(entId, NaN);
       val = Number.isFinite(n) ? `${this._decEnt(entId)}${unit ? ' ' + unit : ''}` : `${raw}${unit ? ' ' + unit : ''}`;
     }
-    return `<div class="pw-mtile" ${has ? `data-more="${esc(entId)}" style="cursor:pointer"` : ''}>
+    return `<div class="pw-mtile${variant ? ` pw-${variant}` : ''}${active ? ' security-active' : ''}"${variant === 'security-sensor' ? ` data-security-active="${active ? 'true' : 'false'}"` : ''} ${has ? `data-more="${esc(entId)}" style="cursor:pointer"` : ''}>
       <div class="mi">${icon}</div><div class="ml">${esc(label)}</div>
       <div class="mv${bad ? ' off' : ''}" ${has ? `data-val="${esc(entId)}" data-unit="${esc(unit)}"` : ''}>${esc(val)}</div></div>`;
   }
@@ -2764,7 +2787,7 @@ class CasaLuna extends HTMLElement {
       : entry).filter(({ entityId }) => entityId && !seen.has(entityId) && !!seen.add(entityId));
     if (!cameras.length) return `<div class="hint" style="opacity:.6">No camera entities configured. Add them in the editor → Cameras.</div>`;
     return `<div class="pw-camera-list">${cameras.map(({ entityId: id, go2rtcName }) => {
-      const label = this._name(id);
+      const label = this._securityName(id, this._name(id));
       const raw = String(this._st(id) ?? 'unknown').toLowerCase();
       const state = ['unavailable', 'unknown', ''].includes(raw) ? this._t('Unavailable') : this._cap(raw || 'ready');
       return `<div class="pw-camera-card" data-camera-open="${esc(id)}" data-camera-label="${esc(label)}" data-camera-go2rtc="${esc(go2rtcName || '')}">
@@ -3144,13 +3167,13 @@ class CasaLuna extends HTMLElement {
   }
 
   /* build a tile grid (N cols) of metric tiles from a discovered entity list */
-  _discoverTiles(rules, cols = 4, iconFn = null, view = '') {
+  _discoverTiles(rules, cols = 4, iconFn = null, view = '', tileVariant = '') {
     const ids = this._discover(rules, view);
     if (!ids.length) return `<div class="hint" style="opacity:.6">No matching entities found.</div>`;
     return this._wGrid(cols, ids.map(id => {
       const icon = iconFn ? iconFn(id) : '•';
       const unit = this._attr(id, 'unit_of_measurement') || '';
-      return this._wTile(icon, this._name(id), id, unit);
+      return this._wTile(icon, this._securityName(id, this._name(id)), id, unit, false, tileVariant);
     }).join(''));
   }
 
@@ -3188,7 +3211,7 @@ class CasaLuna extends HTMLElement {
     /* auto-discover: all cameras + safety binary_sensors */
     if (this._autoOn('security')) {
       const safetyRules = [{ domain: 'binary_sensor', device_class: ['gas', 'smoke', 'carbon_monoxide', 'safety'] }];
-      const motionRules = [{ domain: 'binary_sensor', device_class: ['motion', 'occupancy', 'moving'] }];
+      const motionRules = [{ domain: 'binary_sensor', device_class: ['motion', 'occupancy', 'presence', 'moving'] }];
       const doorRules = [{ domain: 'binary_sensor', device_class: ['door', 'window', 'opening', 'garage_door'] }];
       const cameraIds = this._discover([{ domain: 'camera' }], 'security');
       const cameraEntries = cameraIds.map(id => this._cameraEntry(id));
@@ -3211,12 +3234,12 @@ class CasaLuna extends HTMLElement {
         + this._wHead('Safety Sensors (auto)')
         + this._discoverTiles(safetyRules, 4, () => '🔥', 'security')
         + this._wHead('Motion & Presence (auto)')
-        + this._discoverTiles(motionRules, 4, () => '🚶', 'security')
+        + this._discoverTiles(motionRules, 4, () => '🚶', 'security', 'security-sensor')
         + this._wHead('Doors & Windows (auto)')
-        + this._discoverTiles(doorRules, 4, () => '🚪', 'security')
+        + this._discoverTiles(doorRules, 4, () => '🚪', 'security', 'security-sensor')
         + (addedCameras.length ? this._wHead('Added Cameras') + this._wCameraEntities(addedCameras.map(id => this._cameraEntry(id))) : '')
         + (addedEntities.length ? this._wHead('Added Entities') + this._wGrid(4, addedEntities.map(id =>
-          this._wTile('🛡️', this._name(id), id, this._attr(id, 'unit_of_measurement') || '')).join('')) : '')
+          this._wTile('🛡️', this._securityName(id, this._name(id)), id, this._attr(id, 'unit_of_measurement') || '')).join('')) : '')
     }
     const grp = (head, body) => body ? this._wHead(head) + body : '';
     const safety = [
@@ -3224,10 +3247,10 @@ class CasaLuna extends HTMLElement {
       c.sec_gas_analog && this._wTile('💨', c.sec_gas_analog_name || this._name(c.sec_gas_analog), c.sec_gas_analog),
       c.sec_gas_digital&& this._wTile('🔔', c.sec_gas_digital_name|| this._name(c.sec_gas_digital), c.sec_gas_digital),
     ].filter(Boolean).join('');
-    const motion = c.sec_motion && this._wTile('🚶', c.sec_motion_name || this._name(c.sec_motion), c.sec_motion);
+    const motion = c.sec_motion && this._wTile('🚶', c.sec_motion_name || this._name(c.sec_motion), c.sec_motion, '', false, 'security-sensor');
     const doors = [
-      c.sec_door1   && this._wTile('🚪', c.sec_door1_name   || this._name(c.sec_door1), c.sec_door1),
-      c.sec_window1 && this._wTile('🪟', c.sec_window1_name || this._name(c.sec_window1), c.sec_window1),
+      c.sec_door1   && this._wTile('🚪', c.sec_door1_name   || this._name(c.sec_door1), c.sec_door1, '', false, 'security-sensor'),
+      c.sec_window1 && this._wTile('🪟', c.sec_window1_name || this._name(c.sec_window1), c.sec_window1, '', false, 'security-sensor'),
     ].filter(Boolean).join('');
     const extra = [1, 2, 3, 4, 5, 6].map(n => {
       const id = c[`sec_extra_${n}_entity`];
@@ -5923,10 +5946,10 @@ class CasaLunaEditor extends HTMLElement {
     shell.appendChild(section('nav_cameras', '📷', 'Cameras', [
       info('Each camera has two fields: choose its Home Assistant camera entity, then enter the go2rtc stream name. The Security tab opens that stream only when you select its card. Leave the go2rtc name blank to use the HA entity ID.'),
       textField('camera_stream_base', 'go2rtc base URL (optional — for lower-latency WebRTC)', 'http://192.168.3.109:1984'),
-      picker('sec_cam1', 'Camera 1 — Home Assistant entity', true), textField('sec_cam1_go2rtc', 'Camera 1 — go2rtc stream name', 'front_camera'),
-      picker('sec_cam2', 'Camera 2 — Home Assistant entity', true), textField('sec_cam2_go2rtc', 'Camera 2 — go2rtc stream name', 'gate_camera'),
-      picker('sec_cam3', 'Camera 3 — Home Assistant entity', true), textField('sec_cam3_go2rtc', 'Camera 3 — go2rtc stream name', 'camera_3'),
-      picker('sec_cam4', 'Camera 4 — Home Assistant entity', true), textField('sec_cam4_go2rtc', 'Camera 4 — go2rtc stream name', 'camera_4'),
+      picker('sec_cam1', 'Camera 1 — Home Assistant entity', true), textField('sec_cam1_name', 'Camera 1 — display name', 'Camera 1'), textField('sec_cam1_go2rtc', 'Camera 1 — go2rtc stream name', 'front_camera'),
+      picker('sec_cam2', 'Camera 2 — Home Assistant entity', true), textField('sec_cam2_name', 'Camera 2 — display name', 'Camera 2'), textField('sec_cam2_go2rtc', 'Camera 2 — go2rtc stream name', 'gate_camera'),
+      picker('sec_cam3', 'Camera 3 — Home Assistant entity', true), textField('sec_cam3_name', 'Camera 3 — display name', 'Camera 3'), textField('sec_cam3_go2rtc', 'Camera 3 — go2rtc stream name', 'camera_3'),
+      picker('sec_cam4', 'Camera 4 — Home Assistant entity', true), textField('sec_cam4_name', 'Camera 4 — display name', 'Camera 4'), textField('sec_cam4_go2rtc', 'Camera 4 — go2rtc stream name', 'camera_4'),
     ]));
 
     shell.appendChild(section('nav_energy', '⚡', 'Energy View', [

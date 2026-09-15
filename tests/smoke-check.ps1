@@ -79,6 +79,8 @@ $required = @(
   'Auto-discovered Security names',
   'data-confirm-toggle',
   'Protected controls',
+  'Scripts (auto)',
+  'pw-grid-compact',
   'Add security entity',
   '_unusedEntityFields',
   'Add ${label}',
@@ -103,7 +105,8 @@ $forbidden = @(
   'id="invRowP"',
   'id="invRowV"',
   'border-left:none',
-  "this._discoverToggles([{ domain: 'switch', exclude_dc: ['outlet'] }], 4, () => '🔌')"
+  "this._discoverToggles([{ domain: 'switch', exclude_dc: ['outlet'] }], 4, () => '🔌')",
+  "this._discoverToggles([{ domain: 'input_boolean' }], 3, () => '🎚️')"
 )
 
 foreach ($marker in $forbidden) {

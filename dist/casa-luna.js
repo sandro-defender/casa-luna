@@ -454,7 +454,7 @@ const VIEW_TEXT_DEFAULTS = [
   'Air Conditioning', 'Refrigerator', 'Ambient',
   'Live Power', 'AC System Controls', 'Battery Limits', 'Grid & Sync',
   'Smart Plugs', 'Pack', 'Temps', 'Pack Voltages', 'Charge Controls',
-  'Scenes (auto)', 'Automations (auto)', 'Helpers (auto)',
+  'Scenes (auto)', 'Automations (auto)', 'Scripts (auto)',
   'Scenes', 'Relays', 'More', 'Automations', 'Modes', 'Voice (Alexa)', 'Tuya Timers',
   'Lights (auto)', 'All Lights', 'Lights', 'WLED', 'Slider Light Cards', 'Power System & ESP', 'Server',
   'Solar', 'Grid', 'Load', 'Backup', 'Mode', 'Export lim', 'DOD hold',
@@ -950,7 +950,7 @@ class CasaLuna extends HTMLElement {
      above: a door opening or automation firing wouldn't change the signature, silently
      skipping _update() and leaving those displays stale until some unrelated watched
      entity happened to change too. */
-  static AUTODISC_DOMAINS = new Set(['automation', 'climate', 'scene', 'light']);
+  static AUTODISC_DOMAINS = new Set(['automation', 'climate', 'scene', 'script', 'light']);
   static AUTODISC_BINARY_DC = new Set(['motion', 'occupancy', 'presence', 'moving', 'door', 'window', 'opening', 'garage_door', 'gas', 'smoke', 'carbon_monoxide', 'safety']);
   static AUTODISC_SENSOR_DC = new Set(['temperature', 'humidity']);
   _entitiesSignature() {
@@ -978,7 +978,7 @@ class CasaLuna extends HTMLElement {
         const dom = id.split('.')[0];
         const dc = states[id].attributes?.device_class;
         if ((wants.climate && (dom === 'climate' || (dom === 'sensor' && CasaLuna.AUTODISC_SENSOR_DC.has(dc))))
-          || (wants.automation && (dom === 'automation' || dom === 'scene'))
+          || (wants.automation && (dom === 'automation' || dom === 'scene' || dom === 'script'))
           || (wants.lighting && dom === 'light')
           || (wants.security && (dom === 'camera' || (dom === 'binary_sensor' && CasaLuna.AUTODISC_BINARY_DC.has(dc))))
           || (wantsEvents && (dom === 'automation' || (dom === 'binary_sensor' && CasaLuna.AUTODISC_BINARY_DC.has(dc))))) ids.add(id);
@@ -1517,6 +1517,10 @@ class CasaLuna extends HTMLElement {
       .flipcard.flipped .flipinner { transform:rotateY(180deg); }
       /* ── compact tile grids (metric / toggle / button) ── */
       .pw-grid { display:grid; gap:8px; margin-bottom:8px; }
+      .pw-grid.pw-grid-compact { gap:5px; margin-bottom:6px; }
+      .pw-grid.pw-grid-compact .pw-ttile { min-height:50px; padding:6px 4px; gap:3px; border-radius:8px; }
+      .pw-grid.pw-grid-compact .pw-ttile .ti { font-size:13px; }
+      .pw-grid.pw-grid-compact .pw-ttile .tl { font-size:9px; }
       .pw-mtile { background:rgba(255,255,255,.04); border:1px solid rgba(120,180,255,.14);
         border-radius:10px; padding:9px 7px; text-align:center; min-height:62px;
         display:flex; flex-direction:column; justify-content:center; box-sizing:border-box; }
@@ -1578,6 +1582,9 @@ class CasaLuna extends HTMLElement {
         border:1px solid rgba(120,180,255,.22); color:#cce4ff; font-size:13px; font-weight:700; }
       .pw-scene:active { background:rgba(0,120,200,.4); }
       .pw-scene .si { font-size:20px; display:block; margin-bottom:4px; }
+      .pw-scenes.pw-scenes-compact { grid-template-columns:repeat(4,1fr); gap:5px; margin-bottom:7px; }
+      .pw-scenes.pw-scenes-compact .pw-scene { padding:8px 4px; border-radius:8px; font-size:10px; }
+      .pw-scenes.pw-scenes-compact .pw-scene .si { font-size:15px; margin-bottom:2px; }
       /* section subheader inside panel */
       .pw-head { color:#7fb0d8; font-size:11px; font-weight:700; letter-spacing:.12em;
         text-transform:uppercase; margin:14px 0 8px; opacity:.85; }
@@ -2644,7 +2651,7 @@ class CasaLuna extends HTMLElement {
   }
 
   /* wrap items in an N-column grid (compact tile layout) */
-  _wGrid(cols, html) { return `<div class="pw-grid" style="grid-template-columns:repeat(${cols},1fr)">${html}</div>`; }
+  _wGrid(cols, html, className = '') { return `<div class="pw-grid ${className}" style="grid-template-columns:repeat(${cols},1fr)">${html}</div>`; }
 
   /* compact metric TILE: icon / label / value stacked (taps to more-info / history) */
   _wTile(icon, label, entId, unit = '', isPower = false, variant = '') {
@@ -2775,11 +2782,11 @@ class CasaLuna extends HTMLElement {
   }
 
   /* scene/script buttons grid */
-  _wScenes(scenes) {
+  _wScenes(scenes, className = '') {
     const cells = scenes.map(([icon, label, entId]) =>
       `<div class="pw-scene" ${entId ? `data-scene="${esc(entId)}"` : 'style="opacity:.45"'}>
         <span class="si">${icon}</span>${esc(this._t(label))}</div>`).join('');
-    return `<div class="pw-scenes">${cells}</div>`;
+    return `<div class="pw-scenes ${className}">${cells}</div>`;
   }
 
   /* Security camera cards use HA camera entities. Selecting a card opens go2rtc. */
@@ -3198,10 +3205,10 @@ class CasaLuna extends HTMLElement {
   }
 
   /* build toggle tiles from a discovered list (for switches/lights/automations) */
-  _discoverToggles(rules, cols = 4, iconFn = null) {
+  _discoverToggles(rules, cols = 4, iconFn = null, className = '') {
     const ids = this._discover(rules);
     if (!ids.length) return `<div class="hint" style="opacity:.6">No matching entities found.</div>`;
-    return this._wGrid(cols, ids.map(id => this._wToggleTile(iconFn ? iconFn(id) : '⚪', this._name(id), id)).join(''));
+    return this._wGrid(cols, ids.map(id => this._wToggleTile(iconFn ? iconFn(id) : '⚪', this._name(id), id)).join(''), className);
   }
 
   /* is auto-discover enabled for this view? */
@@ -3426,21 +3433,24 @@ class CasaLuna extends HTMLElement {
       + this._wSlider('🎯', 'Charge SoC limit', c.bat_soc_limit || '', 0, 100, 1, '%');
   }
 
-  /* ── AUTOMATION view: scenes + relays + automations + helpers + Tuya timers ── */
+  /* ── AUTOMATION view: scenes + scripts + relays + automations + Tuya timers ── */
   _viewAutomation() {
     const c = this.config;
-    /* Auto-discover only scenes, automations, and helpers. Switches stay manual
+    /* Auto-discover only scenes, automations, and scripts. Switches stay manual
        because installations often expose circuit breakers as switch entities. */
     if (this._autoOn('automation')) {
       const scenes = this._discover([{ domain: 'scene' }]);
-      const sceneBtns = scenes.length ? this._wScenes(scenes.map(id => ['🎬', this._name(id), id]))
+      const sceneBtns = scenes.length ? this._wScenes(scenes.map(id => ['🎬', this._name(id), id]), 'pw-scenes-compact')
         : '<div class="hint" style="opacity:.6">No scenes found.</div>';
+      const scripts = this._discover([{ domain: 'script' }]);
+      const scriptBtns = scripts.length ? this._wScenes(scripts.map(id => ['▶️', this._name(id), id]), 'pw-scenes-compact')
+        : '<div class="hint" style="opacity:.6">No scripts found.</div>';
       return this._wHead('Scenes (auto)')
         + sceneBtns
+        + this._wHead('Scripts (auto)')
+        + scriptBtns
         + this._wHead('Automations (auto)')
-        + this._discoverToggles([{ domain: 'automation' }], 3, () => '⚙️')
-        + this._wHead('Helpers (auto)')
-        + this._discoverToggles([{ domain: 'input_boolean' }], 3, () => '🎚️');
+        + this._discoverToggles([{ domain: 'automation' }], 4, () => '⚙️', 'pw-grid-compact');
     }
     return this._wHead('Scenes')
       + this._wScenes([
@@ -6238,7 +6248,7 @@ class CasaLunaEditor extends HTMLElement {
     ], { wide: true }));
 
     shell.appendChild(section('nav_automation', '⚙️', 'Automation View', [
-      switchRow('auto_discover_automation', 'Auto-discover', 'Show scenes, automations, and helpers automatically. Switches stay manual for safety.'),
+      switchRow('auto_discover_automation', 'Auto-discover', 'Show scenes, scripts, and automations automatically. Switches and helpers stay manual.'),
       info('Scenes, relays, automations, modes, Alexa, and Tuya timers.'),
       picker('auto_scene_night', 'Good Night (scene)', true),
       picker('auto_scene_morning', 'Morning (scene)', true),

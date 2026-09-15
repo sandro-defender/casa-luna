@@ -77,6 +77,8 @@ $required = @(
   'securityEntityRows',
   'securityAutoNameRows',
   'Auto-discovered Security names',
+  'data-confirm-toggle',
+  'Protected controls',
   'Add security entity',
   '_unusedEntityFields',
   'Add ${label}',

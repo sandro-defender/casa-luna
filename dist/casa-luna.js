@@ -2685,7 +2685,7 @@ class CasaLuna extends HTMLElement {
       <div class="pw-tgl ${on ? 'on' : ''}" ${has ? `data-toggle="${esc(entId)}"` : 'style="opacity:.4"'}><div class="kn"></div></div></div>`;
   }
 
-  /* smart-plug tile: name + optional live power + on/off toggle */
+  /* smart-plug tile: name + optional live power + protected on/off toggle */
   _wPlugTile(label, switchId, powerId) {
     label = this._t(label);
     const has = !!switchId;
@@ -2698,7 +2698,7 @@ class CasaLuna extends HTMLElement {
     }
     return `<div class="pw-ttile">
       <div class="ti">🔌</div><div class="tl">${esc(label)}</div>${pw}
-      <div class="pw-tgl ${on ? 'on' : ''}" ${has ? `data-toggle="${esc(switchId)}"` : 'style="opacity:.4"'}><div class="kn"></div></div></div>`;
+      <div class="pw-tgl ${on ? 'on' : ''}" ${has ? `data-confirm-toggle="${esc(switchId)}" data-confirm-label="${esc(label)}" title="Protected control — tap to confirm"` : 'style="opacity:.4"'}><div class="kn"></div></div></div>`;
   }
 
   /* compact button TILE */
@@ -2981,6 +2981,13 @@ class CasaLuna extends HTMLElement {
       const svc = dom === 'script' ? 'script' : 'homeassistant';
       hass.callService(svc, dom === 'script' ? 'turn_on' : 'toggle', { entity_id: id });
       el.classList.toggle('on');
+    }));
+    root.querySelectorAll('[data-confirm-toggle]').forEach(el => el.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = el.getAttribute('data-confirm-toggle');
+      const on = ['on', 'open', 'home', 'unlocked', 'playing'].includes(String(this._st(id)).toLowerCase());
+      this._confirmAction(el.getAttribute('data-confirm-label') || this._name(id), on,
+        () => hass.callService('homeassistant', 'toggle', { entity_id: id }));
     }));
     root.querySelectorAll('[data-select]').forEach(el => el.addEventListener('change', e => {
       e.stopPropagation();
@@ -3717,7 +3724,7 @@ class CasaLuna extends HTMLElement {
      after every re-render. */
   _a11yPass(root) {
     const r = root || this.shadowRoot;
-    const switches = r.querySelectorAll('[data-toggle]');
+    const switches = r.querySelectorAll('[data-toggle],[data-confirm-toggle]');
     switches.forEach(el => {
       el.setAttribute('role', 'switch');
       el.setAttribute('aria-checked', el.classList.contains('on') ? 'true' : 'false');
@@ -6151,7 +6158,7 @@ class CasaLunaEditor extends HTMLElement {
     ], { wide: true }));
 
     shell.appendChild(section('nav_plugs', '🔌', 'Smart Plugs View', [
-      info('Smart plugs — pick a switch, optionally name it and add a power sensor. Tap a plug tile to toggle. Empty slots are hidden.'),
+      info('Protected controls — pick a switch, optionally name it and add a power sensor. Every Smart Plug action asks for confirmation to prevent accidental breaker changes. Empty slots are hidden.'),
       picker('plug_1_entity', 'Plug 1', true), textField('plug_1_name', 'Plug 1 — name'), picker('plug_1_power', 'Plug 1 — power', true),
       picker('plug_2_entity', 'Plug 2', true), textField('plug_2_name', 'Plug 2 — name'), picker('plug_2_power', 'Plug 2 — power', true),
       picker('plug_3_entity', 'Plug 3', true), textField('plug_3_name', 'Plug 3 — name'), picker('plug_3_power', 'Plug 3 — power', true),

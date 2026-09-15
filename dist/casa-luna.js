@@ -5409,19 +5409,28 @@ class CasaLunaEditor extends HTMLElement {
       const lbl = document.createElement('div'); lbl.className = 'lblrow';
       lbl.textContent = label + (optional ? '  (optional)' : '');
       const cur = cfg[key];
+      if (!this._unusedEntityFields) this._unusedEntityFields = {};
+      if (!cur && !this._unusedEntityFields[key]) {
+        const add = document.createElement('button'); add.type = 'button'; add.textContent = `Add ${label}`;
+        add.setAttribute('aria-label', `Add ${label} entity field`);
+        add.style.cssText = 'padding:7px 10px;border:1px dashed var(--divider-color,rgba(0,0,0,.35));border-radius:7px;background:transparent;color:var(--secondary-text-color);cursor:pointer';
+        add.addEventListener('click', () => { this._unusedEntityFields[key] = true; this._render(); });
+        wrap.appendChild(add);
+        return wrap;
+      }
       if (cur && this._hass.states[cur]) {
         const b = document.createElement('span'); b.className = 'badge';
         b.textContent = '  → ' + this._hass.states[cur].state; lbl.appendChild(b);
       }
       const sel = document.createElement('ha-selector');
       sel.hass = this._hass; sel.selector = { entity: {} }; sel.value = cfg[key] || '';
-      sel.addEventListener('value-changed', e => { e.stopPropagation(); this._set(key, e.detail.value || ''); });
+      sel.addEventListener('value-changed', e => { e.stopPropagation(); this._set(key, e.detail.value || ''); this._render(); });
       const pickerRow = document.createElement('div'); pickerRow.style.cssText = 'display:flex;align-items:center;gap:8px';
       pickerRow.appendChild(sel);
       const clear = document.createElement('button'); clear.type = 'button'; clear.textContent = 'Clear'; clear.disabled = !cur;
       clear.setAttribute('aria-label', `Clear ${label}`);
       clear.style.cssText = 'flex:0 0 auto;padding:8px 10px;border:1px solid var(--divider-color,rgba(0,0,0,.25));border-radius:7px;background:transparent;color:var(--primary-text-color);cursor:pointer';
-      clear.addEventListener('click', e => { e.stopPropagation(); this._set(key, ''); this._render(); });
+      clear.addEventListener('click', e => { e.stopPropagation(); delete this._unusedEntityFields[key]; this._set(key, ''); this._render(); });
       pickerRow.appendChild(clear);
       wrap.appendChild(lbl); wrap.appendChild(pickerRow);
       return wrap;
@@ -5639,10 +5648,20 @@ class CasaLunaEditor extends HTMLElement {
        Expanded: [Rename label input] + [entity picker]   (nothing else)
        Label falls back to defaultLabel; entity falls back to none. */
     const entityRow = (entityKey, defaultLabel, labelKey) => {
+      const curId = cfg[entityKey] || '';
+      if (!this._unusedEntityFields) this._unusedEntityFields = {};
+      if (!curId && !this._unusedEntityFields[entityKey]) {
+        const addWrap = document.createElement('div');
+        const add = document.createElement('button'); add.type = 'button'; add.textContent = `Add ${defaultLabel}`;
+        add.setAttribute('aria-label', `Add ${defaultLabel} entity field`);
+        add.style.cssText = 'margin:3px 0;padding:7px 10px;border:1px dashed var(--divider-color,rgba(0,0,0,.35));border-radius:7px;background:transparent;color:var(--secondary-text-color);cursor:pointer';
+        add.addEventListener('click', () => { this._unusedEntityFields[entityKey] = true; this._rowOpen = { ...(this._rowOpen || {}), [entityKey]: true }; this._render(); });
+        addWrap.appendChild(add);
+        return addWrap;
+      }
       const expanded = !!this._rowOpen?.[entityKey];
       const g = document.createElement('div'); g.className = 'erow' + (expanded ? ' open' : '');
 
-      const curId = cfg[entityKey] || '';
       const live = curId && this._hass?.states?.[curId];
       const labelText = (cfg[labelKey] !== undefined && cfg[labelKey] !== '') ? String(cfg[labelKey]) : defaultLabel;
 
@@ -5679,7 +5698,7 @@ class CasaLunaEditor extends HTMLElement {
         if (live) { const b = document.createElement('span'); b.className = 'badge'; b.textContent = '  → ' + this._hass.states[curId].state; pl.appendChild(b); }
         const sel = document.createElement('ha-selector');
         sel.hass = this._hass; sel.selector = { entity: {} }; sel.value = curId;
-        sel.addEventListener('value-changed', e => { e.stopPropagation(); this._set(entityKey, e.detail.value || ''); });
+        sel.addEventListener('value-changed', e => { e.stopPropagation(); this._set(entityKey, e.detail.value || ''); this._render(); });
         const pickerRow = document.createElement('div');
         pickerRow.style.cssText = 'display:flex;align-items:center;gap:8px';
         pickerRow.appendChild(sel);
@@ -5687,7 +5706,7 @@ class CasaLunaEditor extends HTMLElement {
         clear.type = 'button'; clear.textContent = 'Clear';
         clear.disabled = !curId;
         clear.style.cssText = 'flex:0 0 auto;padding:8px 10px;border:1px solid var(--divider-color,rgba(0,0,0,.25));border-radius:7px;background:transparent;color:var(--primary-text-color);cursor:pointer';
-        clear.addEventListener('click', e => { e.stopPropagation(); this._set(entityKey, ''); this._render(); });
+        clear.addEventListener('click', e => { e.stopPropagation(); delete this._unusedEntityFields[entityKey]; this._set(entityKey, ''); this._render(); });
         pickerRow.appendChild(clear);
         body.appendChild(pl); body.appendChild(pickerRow);
 

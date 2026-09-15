@@ -1521,6 +1521,29 @@ class CasaLuna extends HTMLElement {
       .pw-grid.pw-grid-compact .pw-ttile { min-height:50px; padding:6px 4px; gap:3px; border-radius:8px; }
       .pw-grid.pw-grid-compact .pw-ttile .ti { font-size:13px; }
       .pw-grid.pw-grid-compact .pw-ttile .tl { font-size:9px; }
+      /* climate: dense control layout keeps live temperature and setpoint in view */
+      .pw-climate { display:flex; flex-direction:column; align-items:stretch; gap:8px; padding:10px; }
+      .pw-climate-top { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; }
+      .pw-climate-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#eaf4ff; font-size:14px; font-weight:700; }
+      .pw-climate-state { flex:0 0 auto; padding:3px 7px; border:1px solid rgba(120,180,255,.22); border-radius:999px; color:#7fb0d8; font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+      .climate-reading-grid { display:grid; grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); gap:7px; }
+      .climate-reading { min-width:0; padding:7px 8px; border:1px solid rgba(120,180,255,.14); border-radius:8px; background:rgba(255,255,255,.035); }
+      .climate-reading-label { color:#7fa3c4; font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+      .climate-now-value { margin-top:2px; color:#5bc8ff; font-size:20px; font-weight:700; line-height:1; }
+      .climate-target-control { display:grid; grid-template-columns:30px minmax(0,1fr) 30px; align-items:center; gap:5px; }
+      .climate-step { width:30px; height:30px; padding:0; border:1px solid rgba(0,200,255,.38); border-radius:8px; background:rgba(0,180,255,.12); color:#7fd4ff; cursor:pointer; font-size:18px; line-height:1; }
+      .climate-step:active { background:rgba(0,180,255,.28); }
+      .climate-target-value { margin-top:1px; color:#ffd24a; font-size:21px; font-weight:700; line-height:1; text-align:center; }
+      .climate-mode-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
+      .climate-chip { min-width:0; padding:6px 4px; border:1px solid rgba(120,180,255,.18); border-radius:7px; background:rgba(255,255,255,.035); color:#bcd8ee; cursor:pointer; font:inherit; font-size:10px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .climate-chip.is-active { border-color:rgba(0,200,255,.65); background:rgba(0,200,255,.18); color:#5bc8ff; }
+      .climate-chip:disabled { cursor:default; opacity:.4; }
+      .climate-options { display:flex; flex-direction:column; gap:5px; }
+      .climate-option-label { color:#7fa3c4; font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+      .climate-option-chips { display:flex; flex-wrap:wrap; gap:5px; }
+      .pw-climate-eco { display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid rgba(120,180,255,.14); border-radius:8px; background:rgba(255,255,255,.035); }
+      .pw-climate-eco .pw-lbl { font-size:11px; }
+      @media (max-width:520px) { .climate-mode-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } .climate-reading-grid { grid-template-columns:1fr 1.2fr; } }
       .pw-mtile { background:rgba(255,255,255,.04); border:1px solid rgba(120,180,255,.14);
         border-radius:10px; padding:9px 7px; text-align:center; min-height:62px;
         display:flex; flex-direction:column; justify-content:center; box-sizing:border-box; }
@@ -2817,7 +2840,7 @@ class CasaLuna extends HTMLElement {
     }).join('')}</div>`;
   }
 
-  /* climate control card: current temp + target steppers + mode/fan/swing chips + eco (climate.*) */
+  /* climate control card: compact current temp + setpoint + mode/fan/swing controls */
   _wClimate(label, entId) {
     label = this._t(label);
     const has = !!entId;
@@ -2832,34 +2855,38 @@ class CasaLuna extends HTMLElement {
     const curPreset = has ? this._attr(entId, 'preset_mode') : null;
     const presets = has ? this._attr(entId, 'preset_modes') : null;
     const chip = (active, attrs, text) =>
-      `<div class="pw-scene" style="padding:7px 4px;font-size:11px;${active ? 'background:rgba(0,200,255,.25);border-color:rgba(0,200,255,.6);color:#5bc8ff' : ''}" ${attrs}>${esc(text)}</div>`;
-    const modeChips = modes.map(m => chip(m === st, has ? `data-hvac="${esc(entId)}" data-mode="${esc(m)}"` : 'style="opacity:.4"', m)).join('');
+      `<button type="button" class="climate-chip${active ? ' is-active' : ''}" ${attrs}>${esc(text)}</button>`;
+    const modeChips = modes.map(m => chip(m === st, has ? `data-hvac="${esc(entId)}" data-mode="${esc(m)}"` : 'disabled', m)).join('');
     let extra = '';
     if (has && fanModes && fanModes.length) {
-      extra += `<div class="pw-head" style="margin:10px 0 6px">${esc(this._t('Fan Speed'))}</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px">${fanModes.map(f => chip(f === curFan, `data-fan="${esc(entId)}" data-val="${esc(f)}"`, f)).join('')}</div>`;
+      extra += `<div class="climate-options"><div class="climate-option-label">${esc(this._t('Fan Speed'))}</div>
+        <div class="climate-option-chips">${fanModes.map(f => chip(f === curFan, `data-fan="${esc(entId)}" data-val="${esc(f)}"`, f)).join('')}</div></div>`;
     }
     if (has && swingModes && swingModes.length) {
-      extra += `<div class="pw-head" style="margin:10px 0 6px">${esc(this._t('Airflow'))}</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px">${swingModes.map(s => chip(s === curSwing, `data-swing="${esc(entId)}" data-val="${esc(s)}"`, s)).join('')}</div>`;
+      extra += `<div class="climate-options"><div class="climate-option-label">${esc(this._t('Airflow'))}</div>
+        <div class="climate-option-chips">${swingModes.map(s => chip(s === curSwing, `data-swing="${esc(entId)}" data-val="${esc(s)}"`, s)).join('')}</div></div>`;
     }
     if (has && presets && presets.includes('eco')) {
-      extra += `<div style="margin-top:10px">${this._wToggleInline('🌿', 'Eco mode', entId, curPreset === 'eco', 'data-eco="' + esc(entId) + '"')}</div>`;
+      extra += this._wToggleInline('🌿', 'Eco mode', entId, curPreset === 'eco', 'data-eco="' + esc(entId) + '"');
     }
-    return `<div class="pw" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span class="pw-lbl" style="font-size:15px">${esc(label)}</span>
-        <span style="font-size:12px;color:#7fa3c4">${esc(this._t('Now:'))} <b style="color:#5bc8ff">${cur != null ? (+cur).toFixed(1) + '°' : '--'}</b></span>
+    return `<div class="pw pw-climate">
+      <div class="pw-climate-top">
+        <span class="pw-climate-title">${esc(label)}</span>
+        <span class="pw-climate-state">${esc(this._t(String(st || 'off')))}</span>
       </div>
-      <div style="display:flex;align-items:center;justify-content:center;gap:18px">
-        <div class="pw-btn" style="width:38px;height:38px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;font-size:20px"
-          ${has ? `data-tempstep="${esc(entId)}" data-delta="-0.5"` : 'style="opacity:.4"'}>−</div>
-        <div style="text-align:center;min-width:74px"><div style="font-size:10px;color:#7fa3c4">${esc(this._t('TARGET'))}</div>
-          <div data-target="${esc(entId)}" style="font-size:26px;font-weight:700;color:#ffd24a">${target != null ? (+target).toFixed(1) + '°' : '--'}</div></div>
-        <div class="pw-btn" style="width:38px;height:38px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;font-size:20px"
-          ${has ? `data-tempstep="${esc(entId)}" data-delta="0.5"` : 'style="opacity:.4"'}>+</div>
+      <div class="climate-reading-grid">
+        <div class="climate-reading"><div class="climate-reading-label">${esc(this._t('Now:'))}</div>
+          <div class="climate-now-value">${cur != null ? (+cur).toFixed(1) + '°' : '--'}</div></div>
+        <div class="climate-reading">
+          <div class="climate-reading-label">${esc(this._t('TARGET'))}</div>
+          <div class="climate-target-control">
+            <button type="button" class="climate-step" aria-label="Lower temperature" ${has ? `data-tempstep="${esc(entId)}" data-delta="-0.5"` : 'disabled'}>−</button>
+            <div data-target="${esc(entId)}" class="climate-target-value">${target != null ? (+target).toFixed(1) + '°' : '--'}</div>
+            <button type="button" class="climate-step" aria-label="Raise temperature" ${has ? `data-tempstep="${esc(entId)}" data-delta="0.5"` : 'disabled'}>+</button>
+          </div>
+        </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">${modeChips}</div>
+      <div class="climate-mode-grid">${modeChips}</div>
       ${extra}
     </div>`;
   }
@@ -2867,7 +2894,7 @@ class CasaLuna extends HTMLElement {
   /* inline toggle (no row wrapper) — for embedding inside other widgets */
   _wToggleInline(icon, label, entId, on, dataAttr) {
     label = this._t(label);
-    return `<div style="display:flex;align-items:center;gap:12px;padding:9px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(120,180,255,.14);border-radius:10px">
+    return `<div class="pw-climate-eco">
       <span class="pw-ic">${icon}</span><span class="pw-lbl">${esc(label)}</span>
       <div class="pw-tgl ${on ? 'on' : ''}" ${dataAttr}><div class="kn"></div></div></div>`;
   }

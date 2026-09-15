@@ -729,6 +729,7 @@ class CasaLuna extends HTMLElement {
       auto_discover_security: false, auto_discover_climate: false,
       auto_discover_lighting: false, auto_discover_automation: false,
       auto_discover_security_include: [], auto_discover_security_exclude: [],
+      security_extra_entities: [],
       events_entities: [],
       /* ── phase monitor / optional AC-load inputs ── */
       label_phase_title: 'GRID PHASES',
@@ -2612,6 +2613,9 @@ class CasaLuna extends HTMLElement {
   _securityName(entId, fallback = '') {
     if (!entId) return fallback;
     const c = this.config || {};
+    const custom = (Array.isArray(c.security_extra_entities) ? c.security_extra_entities : [])
+      .find(item => item && item.entity === entId && typeof item.name === 'string' && item.name.trim());
+    if (custom) return custom.name.trim();
     const keys = [
       'sec_cam1', 'sec_cam2', 'sec_cam3', 'sec_cam4',
       'sec_flame', 'sec_gas_analog', 'sec_gas_digital', 'sec_motion', 'sec_door1', 'sec_window1',
@@ -2621,6 +2625,12 @@ class CasaLuna extends HTMLElement {
     if (!key) return fallback;
     const labelKey = key.endsWith('_entity') ? key.replace('_entity', '_name') : `${key}_name`;
     return typeof c[labelKey] === 'string' && c[labelKey].trim() ? c[labelKey].trim() : fallback;
+  }
+
+  _securityExtraEntities() {
+    const entries = Array.isArray(this.config?.security_extra_entities)
+      ? this.config.security_extra_entities : [];
+    return entries.filter(item => item && typeof item.entity === 'string' && item.entity);
   }
 
   _displayLabel(entId, fallback) {
@@ -3222,7 +3232,11 @@ class CasaLuna extends HTMLElement {
         ...this._discover(doorRules, 'security'),
       ]);
       const excluded = new Set(Array.isArray(c.auto_discover_security_exclude) ? c.auto_discover_security_exclude : []);
-      const added = (Array.isArray(c.auto_discover_security_include) ? c.auto_discover_security_include : [])
+      const included = [
+        ...(Array.isArray(c.auto_discover_security_include) ? c.auto_discover_security_include : []),
+        ...this._securityExtraEntities().map(item => item.entity),
+      ];
+      const added = [...new Set(included)]
         .filter(id => !discovered.has(id) && !excluded.has(id))
         .filter(id => {
           const state = String(this._st(id) ?? '').trim().toLowerCase();
@@ -3252,10 +3266,17 @@ class CasaLuna extends HTMLElement {
       c.sec_door1   && this._wTile('🚪', c.sec_door1_name   || this._name(c.sec_door1), c.sec_door1, '', false, 'security-sensor'),
       c.sec_window1 && this._wTile('🪟', c.sec_window1_name || this._name(c.sec_window1), c.sec_window1, '', false, 'security-sensor'),
     ].filter(Boolean).join('');
-    const extra = [1, 2, 3, 4, 5, 6].map(n => {
+    const legacyExtra = [1, 2, 3, 4, 5, 6].map(n => {
       const id = c[`sec_extra_${n}_entity`];
-      return id ? this._wTile('🛡️', c[`sec_extra_${n}_name`] || this._name(id), id) : '';
-    }).filter(Boolean).join('');
+      return id ? { id, card: this._wTile('🛡️', c[`sec_extra_${n}_name`] || this._name(id), id) } : null;
+    }).filter(Boolean);
+    const usedExtraIds = new Set(legacyExtra.map(item => item.id));
+    const extra = [
+      ...legacyExtra.map(item => item.card),
+      ...this._securityExtraEntities()
+        .filter(item => !usedExtraIds.has(item.entity))
+        .map(item => this._wTile('🛡️', this._securityName(item.entity, this._name(item.entity)), item.entity)),
+    ].join('');
     const scenes = [
       ['🛡️', 'Arm Away', c.sec_scene_arm || ''],
       ['🏠', 'Disarm', c.sec_scene_disarm || ''],
@@ -5348,6 +5369,7 @@ class CasaLunaEditor extends HTMLElement {
       .erow.open .erow-head{background:var(--secondary-background-color,rgba(0,0,0,.04))}
       .erow-body{padding:8px 4px 4px}
       .erow-body ha-selector{width:100%;display:block}
+      @media (max-width:760px){.security-entity-row{grid-template-columns:1fr !important}.security-entity-row button{width:100%}}
     </style>`;
 
     const shell = document.createElement('div');
@@ -5500,6 +5522,56 @@ class CasaLunaEditor extends HTMLElement {
         if (id && !values.includes(id)) { this._set(key, [...values, id]); this._render(); }
       });
       wrap.appendChild(addLabel); wrap.appendChild(selector);
+      return wrap;
+    };
+
+    /* Unlimited named Security rows replace the old fixed-slot limitation without
+       invalidating existing sec_extra_1…6 YAML. */
+    const securityEntityRows = () => {
+      const wrap = document.createElement('div'); wrap.className = 'fld';
+      const label = document.createElement('label'); label.textContent = 'Additional Security Entities';
+      const help = document.createElement('div'); help.style.cssText = 'margin:-2px 0 8px;font-size:.72rem;line-height:1.35;color:var(--secondary-text-color)';
+      help.textContent = 'Add as many entities as needed. Each row has its own display name in the Security tab.';
+      wrap.append(label, help);
+      const raw = Array.isArray(cfg.security_extra_entities) ? cfg.security_extra_entities : [];
+      const entries = raw.map(item => typeof item === 'string'
+        ? { entity: item, name: '' }
+        : { entity: String(item?.entity || ''), name: String(item?.name || '') });
+      const save = next => { this._set('security_extra_entities', next); this._render(); };
+      const selectorConfig = { entity: { filter: [
+        { domain: 'camera' }, { domain: 'binary_sensor' }, { domain: 'lock' },
+        { domain: 'alarm_control_panel' }, { domain: 'sensor' },
+      ] } };
+      entries.forEach((entry, index) => {
+        const row = document.createElement('div'); row.className = 'security-entity-row'; row.style.cssText = 'display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:end;margin:8px 0;padding:8px;border-radius:7px;background:var(--secondary-background-color,rgba(0,0,0,.05))';
+        const entityField = document.createElement('div');
+        const entityLabel = document.createElement('div'); entityLabel.className = 'lblrow'; entityLabel.textContent = 'Entity';
+        const selector = document.createElement('ha-selector'); selector.hass = this._hass; selector.selector = selectorConfig; selector.value = entry.entity; selector.style.marginBottom = '0';
+        selector.addEventListener('value-changed', event => {
+          event.stopPropagation();
+          const next = entries.map((item, i) => i === index ? { ...item, entity: event.detail.value || '' } : item);
+          save(next);
+        });
+        entityField.append(entityLabel, selector);
+        const nameField = document.createElement('div');
+        const nameLabel = document.createElement('div'); nameLabel.className = 'lblrow'; nameLabel.textContent = 'Display name';
+        const nameInput = document.createElement('input'); nameInput.type = 'text'; nameInput.placeholder = 'Security entity'; nameInput.value = entry.name;
+        nameInput.addEventListener('change', event => {
+          const next = entries.map((item, i) => i === index ? { ...item, name: event.target.value } : item);
+          save(next);
+        });
+        nameField.append(nameLabel, nameInput);
+        const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Remove';
+        remove.setAttribute('aria-label', `Remove additional security entity ${index + 1}`);
+        remove.style.cssText = 'padding:8px 10px;border:1px solid var(--divider-color,rgba(0,0,0,.25));border-radius:7px;background:transparent;color:var(--primary-text-color);cursor:pointer';
+        remove.addEventListener('click', () => save(entries.filter((_, i) => i !== index)));
+        row.append(entityField, nameField, remove); wrap.appendChild(row);
+      });
+      const add = document.createElement('button'); add.type = 'button'; add.textContent = 'Add security entity';
+      add.setAttribute('aria-label', 'Add security entity');
+      add.style.cssText = 'padding:8px 10px;border:1px solid var(--primary-color,#03a9f4);border-radius:7px;background:transparent;color:var(--primary-color,#03a9f4);cursor:pointer';
+      add.addEventListener('click', () => save([...entries, { entity: '', name: '' }]));
+      wrap.appendChild(add);
       return wrap;
     };
 
@@ -6077,6 +6149,8 @@ class CasaLunaEditor extends HTMLElement {
       picker('sec_extra_4_entity', 'Extra 4', true), textField('sec_extra_4_name', 'Extra 4 — name'),
       picker('sec_extra_5_entity', 'Extra 5', true), textField('sec_extra_5_name', 'Extra 5 — name'),
       picker('sec_extra_6_entity', 'Extra 6', true), textField('sec_extra_6_name', 'Extra 6 — name'),
+      divider(),
+      securityEntityRows(),
     ], { wide: true }));
 
     shell.appendChild(section('nav_automation', '⚙️', 'Automation View', [

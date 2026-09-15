@@ -102,7 +102,8 @@ $forbidden = @(
   'id="tpSvg"',
   'id="invRowP"',
   'id="invRowV"',
-  'border-left:none'
+  'border-left:none',
+  "this._discoverToggles([{ domain: 'switch', exclude_dc: ['outlet'] }], 4, () => '🔌')"
 )
 
 foreach ($marker in $forbidden) {

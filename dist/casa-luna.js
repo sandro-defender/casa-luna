@@ -454,7 +454,7 @@ const VIEW_TEXT_DEFAULTS = [
   'Air Conditioning', 'Refrigerator', 'Ambient',
   'Live Power', 'AC System Controls', 'Battery Limits', 'Grid & Sync',
   'Smart Plugs', 'Pack', 'Temps', 'Pack Voltages', 'Charge Controls',
-  'Scenes (auto)', 'Automations (auto)', 'Switches (auto)', 'Helpers (auto)',
+  'Scenes (auto)', 'Automations (auto)', 'Helpers (auto)',
   'Scenes', 'Relays', 'More', 'Automations', 'Modes', 'Voice (Alexa)', 'Tuya Timers',
   'Lights (auto)', 'All Lights', 'Lights', 'WLED', 'Slider Light Cards', 'Power System & ESP', 'Server',
   'Solar', 'Grid', 'Load', 'Backup', 'Mode', 'Export lim', 'DOD hold',
@@ -3426,10 +3426,11 @@ class CasaLuna extends HTMLElement {
       + this._wSlider('🎯', 'Charge SoC limit', c.bat_soc_limit || '', 0, 100, 1, '%');
   }
 
-  /* ── AUTOMATION view: scenes + relays + automations + Alexa + Tuya timers ── */
+  /* ── AUTOMATION view: scenes + relays + automations + helpers + Tuya timers ── */
   _viewAutomation() {
     const c = this.config;
-    /* auto-discover: all scenes + automations + switches */
+    /* Auto-discover only scenes, automations, and helpers. Switches stay manual
+       because installations often expose circuit breakers as switch entities. */
     if (this._autoOn('automation')) {
       const scenes = this._discover([{ domain: 'scene' }]);
       const sceneBtns = scenes.length ? this._wScenes(scenes.map(id => ['🎬', this._name(id), id]))
@@ -3438,8 +3439,6 @@ class CasaLuna extends HTMLElement {
         + sceneBtns
         + this._wHead('Automations (auto)')
         + this._discoverToggles([{ domain: 'automation' }], 3, () => '⚙️')
-        + this._wHead('Switches (auto)')
-        + this._discoverToggles([{ domain: 'switch', exclude_dc: ['outlet'] }], 4, () => '🔌')
         + this._wHead('Helpers (auto)')
         + this._discoverToggles([{ domain: 'input_boolean' }], 3, () => '🎚️');
     }
@@ -6239,7 +6238,7 @@ class CasaLunaEditor extends HTMLElement {
     ], { wide: true }));
 
     shell.appendChild(section('nav_automation', '⚙️', 'Automation View', [
-      switchRow('auto_discover_automation', 'Auto-discover', 'Show all scenes + automations + switches + helpers automatically.'),
+      switchRow('auto_discover_automation', 'Auto-discover', 'Show scenes, automations, and helpers automatically. Switches stay manual for safety.'),
       info('Scenes, relays, automations, modes, Alexa, and Tuya timers.'),
       picker('auto_scene_night', 'Good Night (scene)', true),
       picker('auto_scene_morning', 'Morning (scene)', true),
